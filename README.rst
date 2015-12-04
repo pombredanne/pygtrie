@@ -1,14 +1,30 @@
-pytrie is a Python library implementing a trie data structure.
+pygtrie
+=======
 
-Trie data structure, also known as radix or prefix tree, is an ordered
-tree associating keys to values where all the descendants of a node
-have a common prefix (associated with that node).
+.. image:: https://readthedocs.org/projects/pygtrie/badge/?version=latest
+   :target: http://pygtrie.readthedocs.org/en/latest/
+   :alt: Documentation Status (latest)
 
-The trie module contains Trie, CharTrie and StringTrie classes each
-implementing a mutable mapping interface, i.e. interface of the
-dictionary.  As such, in most circumstances, Trie could be used as
-a drop-in replacement for a dict.  Obviously the prefix nature of the
-data structure is what gives it its strengths.
+.. image:: https://readthedocs.org/projects/pygtrie/badge/?version=stable
+   :target: http://pygtrie.readthedocs.org/en/stable/
+   :alt: Documentation Status (stable)
+
+pygtrie is a Python library implementing a trie data structure.
+
+`Trie data structure <http://en.wikipedia.org/wiki/Trie>`_, also known
+as radix or prefix tree, is a tree associating keys to values where
+all the descendants of a node have a common prefix (associated with
+that node).
+
+The trie module contains ``Trie``, ``CharTrie`` and ``StringTrie``
+classes each implementing a mutable mapping interface, i.e. ``dict``
+interface.  As such, in most circumstances, ``Trie`` could be used as
+a drop-in replacement for a ``dict``, but the prefix nature of the
+data structure is trie’s real strength.
+
+The module also contains ``PrefixSet`` class which uses a trie to
+store a set of prefixes such that a key is contained in the set if it
+or its prefix is stored in the set.
 
 Features
 --------
@@ -22,9 +38,15 @@ Features
 
 - Extensible for any kind of user-defined keys.
 
-Version History
----------------
+- A PrefixSet supports “all keys starting with given prefix” logic.
 
-0.9: 2014/02/03
+- Can store any value including None.
 
-- Initial release.
+Installation
+------------
+
+To install bz2file, run::
+
+    pip install pygtrie
+
+Or download the sources and save ``trie.py`` file with your project.

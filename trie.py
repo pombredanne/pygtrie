@@ -1,12 +1,37 @@
-"""A Python trie implementation.
+# -*- coding: utf-8 -*-
+"""Implementation of a trie data structure.
 
-The module contains Trie, CharTrie and StringTrie classes which implement the
-trie data structure (see <http://en.wikipedia.org/wiki/Trie>).  The classes
-implement a mutable mapping interface (or in other words interface of
-a dictionary) with some additional functionality related to being able to
-operate keys with given prefix.
+`Trie data structure <http://en.wikipedia.org/wiki/Trie>`_, also known as radix
+or prefix tree, is a tree associating keys to values where all the descendants
+of a node have a common prefix (associated with that node).
 
-For some simple examples see example.py file.
+The trie module contains :class:`trie.Trie`, :class:`trie.CharTrie` and
+:class:`trie.StringTrie` classes each implementing a mutable mapping interface,
+i.e. :class:`dict` interface.  As such, in most circumstances,
+:class:`trie.Trie` could be used as a drop-in replacement for a :class:`dict`,
+but the prefix nature of the data structure is trie’s real strength.
+
+The module also contains :class:`trie.PrefixSet` class which uses a trie to
+store a set of prefixes such that a key is contained in the set if it or its
+prefix is stored in the set.
+
+Features
+--------
+
+- A full mutable mapping implementation.
+
+- Supports iterating over as well as deleting a subtrie.
+
+- Supports prefix checking as well as shortest and longest prefix
+  look-up.
+
+- Extensible for any kind of user-defined keys.
+
+- A PrefixSet supports “all keys starting with given prefix” logic.
+
+- Can store any value including None.
+
+For some simple examples see ``example.py`` file.
 """
 
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
@@ -35,21 +60,26 @@ class _Node(object):
     self.children = {}
     self.value = _SENTINEL
 
-  def Iterate(self, path):
+  def iterate(self, path, shallow=False):
     """Yields all the nodes with values associated to them in the trie.
 
     Args:
       path: Path leading to this node.  Used to construct the key when
-        returning value of this node and as a prefix for children.
+          returning value of this node and as a prefix for children.
+      shallow: Perform a shallow traversal, i.e. do not yield nodes if their
+          prefix has been yielded.
+
     Yields:
-      (path, value) tuples.
+      ``(path, value)`` tuples.
     """
     if self.value is not _SENTINEL:
       yield path, self.value
+      if shallow:
+        return
     path.append(None)
     for step, node in sorted(self.children.iteritems()):
       path[-1] = step
-      for pair in node.Iterate(path):
+      for pair in node.iterate(path, shallow=shallow):
         yield pair
     path.pop()
 
@@ -66,21 +96,26 @@ class _Node(object):
 
 
 class Trie(collections.MutableMapping):
-  """A trie implementation with dict interface with some extensions.
+  """A trie implementation with dict interface plus some extensions.
 
-  Keys used with the Trie must be iterable yielding hashable objects.  In
-  other words, for a given key, "dict.fromkeys(key)" must be valid.
+  Keys used with the :class:`trie.Trie` must be iterable, yielding hashable
+  objects.  In other words, for a given key, ``dict.fromkeys(key)`` must be
+  valid.
 
-  In particular, strings work perfectly fine as trie keys, however when
-  getting keys back from iterkeys() method, instead of strings, tuples of
-  characters will be yielded.  For that reason, CharTrie or StringTrie may be
-  preferred when using Trie with string keys.
+  In particular, strings work fine as trie keys, however when getting keys back
+  from iterkeys() method for example, instead of strings, tuples of characters
+  are produced.  For that reason, :class:`trie.CharTrie` or
+  :class:`trie.StringTrie` may be preferred when using :class:`trie.Trie` with
+  string keys.
   """
 
   # pylint: disable=invalid-name
 
   def __init__(self, *args, **kwargs):
-    """Initialises the trie.  Arguments are interpreted like update() does."""
+    """Initialises the trie.
+
+    Arguments are interpreted the same way :func:`Trie.update` interprets them.
+    """
     self._root = _Node()
     self.update(*args, **kwargs)
 
@@ -89,7 +124,7 @@ class Trie(collections.MutableMapping):
     self._root = _Node()
 
   def update(self, *args, **kwargs):
-    """Updates stored values.  Works like dict's update()."""
+    """Updates stored values.  Works like :func:`dict.update`."""
     if len(args) > 1:
       raise ValueError('update() takes at most one positional argument, '
                        '%d given.' % len(args))
@@ -115,32 +150,36 @@ class Trie(collections.MutableMapping):
     Args:
       keys: An iterable of keys that should be set in the new trie.
       value: Value to associate with given keys.
+
     Returns:
-      A new trie where each key from keys has been set to the given value.
+      A new trie where each key from ``keys`` has been set to the given value.
     """
     trie = cls()
     for key in keys:
       trie[key] = value
     return trie
 
-  def _GetNode(self, key, create=False):
+  def _get_node(self, key, create=False):
     """Returns node for given key.  Creates it if requested.
 
     Args:
       key: A key to look for.
       create: Whether to create the node if it does not exist.
+
     Returns:
-      (node, trace) tuple where node is the node for given key and trace is
-      a list specifying path to reach the node including all the encountered
-      nodes.  Each element of trace is a (step, node) tuple where step is
-      a step from parent node to given node, and node is node on the path.
-      The first element of the path is always (None, self._root).
+      ``(node, trace)`` tuple where ``node`` is the node for given key and
+      ``trace`` is a list specifying path to reach the node including all the
+      encountered nodes.  Each element of trace is a ``(step, node)`` tuple
+      where ``step`` is a step from parent node to given node, and ``node`` is
+      node on the path.  The first element of the path is always ``(None,
+      self._root)``.
+
     Raises:
-      KeyError: If there is no node for the key and create is False.
+      KeyError: If there is no node for the key and ``create`` is ``False``.
     """
     node = self._root
     trace = [(None, node)]
-    for step in self.__PathFromKey(key):
+    for step in self.__path_from_key(key):
       if create:
         node = node.children.setdefault(step, _Node())
       else:
@@ -153,66 +192,77 @@ class Trie(collections.MutableMapping):
   def __iter__(self):
     return self.iterkeys()
 
-  def iteritems(self, prefix=_SENTINEL):
+  def iteritems(self, prefix=_SENTINEL, shallow=False):
     """Yields all nodes with associated values with given prefix.
 
     Args:
       prefix: Prefix to limit iteration to.
-    Yields:
-      (key, value) tuples.
-    Raises:
-      KeyError: If prefix does not match any node.
-    """
-    node, _ = self._GetNode(prefix)
-    for path, value in node.Iterate(list(self.__PathFromKey(prefix))):
-      yield (self._KeyFromPath(path), value)
+      shallow: Perform a shallow traversal, i.e. do not yield items if their
+          prefix has been yielded.
 
-  def iterkeys(self, prefix=_SENTINEL):
-    """Yields all keys with associated values with given prefix.
+    Yields:
+      ``(key, value)`` tuples.
+
+    Raises:
+      KeyError: If ``prefix`` does not match any node.
+    """
+    node, _ = self._get_node(prefix)
+    for path, value in node.iterate(list(self.__path_from_key(prefix)),
+                                    shallow=shallow):
+      yield (self._key_from_path(path), value)
+
+  def iterkeys(self, prefix=_SENTINEL, shallow=False):
+    """Yields all keys having associated values with given prefix.
 
     Args:
       prefix: Prefix to limit iteration to.
+      shallow: Perform a shallow traversal, i.e. do not yield keys if their
+          prefix has been yielded.
+
     Yields:
       All the keys (with given prefix) with associated values in the trie.
+
     Raises:
-      KeyError: If prefix does not match any node.
+      KeyError: If ``prefix`` does not match any node.
     """
-    for key, _ in self.iteritems(prefix=prefix):
+    for key, _ in self.iteritems(prefix=prefix, shallow=shallow):
       yield key
 
-  def itervalues(self, prefix=_SENTINEL):
-    """Yields all values associates with keys with given prefix.
+  def itervalues(self, prefix=_SENTINEL, shallow=False):
+    """Yields all values associated with keys with given prefix.
 
     Args:
       prefix: Prefix to limit iteration to.
+      shallow: Perform a shallow traversal, i.e. do not yield values if their
+          prefix has been yielded.
+
     Yields:
       All the values associated with keys (with given prefix) in the trie.
+
     Raises:
-      KeyError: If prefix does not match any node.
+      KeyError: If ``prefix`` does not match any node.
     """
-    node, _ = self._GetNode(prefix)
-    for _, value in node.Iterate(list(self.__PathFromKey(prefix))):
+    node, _ = self._get_node(prefix)
+    for _, value in node.iterate(list(self.__path_from_key(prefix)),
+                                 shallow=shallow):
       yield value
 
-  def keys(self, prefix=_SENTINEL):
+  def keys(self, prefix=_SENTINEL, shallow=False):
     """Returns a list of all the keys, with given prefix, in the trie."""
-    return list(self.iterkeys(prefix=prefix))
+    return list(self.iterkeys(prefix=prefix, shallow=shallow))
 
-  def values(self, prefix=_SENTINEL):
+  def values(self, prefix=_SENTINEL, shallow=False):
     """Returns a list of values in given subtrie."""
-    return list(self.itervalues(prefix=prefix))
+    return list(self.itervalues(prefix=prefix, shallow=shallow))
 
-  def items(self, prefix=_SENTINEL):
-    """Returns a list of (key, value) pairs in given subtrie."""
-    return list(self.iteritems(prefix=prefix))
+  def items(self, prefix=_SENTINEL, shallow=False):
+    """Returns a list of ``(key, value)`` pairs in given subtrie."""
+    return list(self.iteritems(prefix=prefix, shallow=shallow))
 
   def __len__(self):
     """Returns number of values in a trie.
 
     This method is expensive as it iterates over the whole trie.
-
-    Returns:
-      Number of keys with values associated with it in the trie.
     """
     return sum(1 for _ in self.itervalues())
 
@@ -227,13 +277,14 @@ class Trie(collections.MutableMapping):
 
     Args:
       key: A key to look for.
+
     Returns:
-      A bitwise or of HAS_VALUE and HAS_SUBTRIE values indicating that node has
-      a value associated with it and that it is a prefix of another existing
-      key respectively.
+      A bitwise or of ``HAS_VALUE`` and ``HAS_SUBTRIE`` values indicating that
+      node has a value associated with it and that it is a prefix of another
+      existing key respectively.
     """
     try:
-      node, _ = self._GetNode(key)
+      node, _ = self._get_node(key)
     except KeyError:
       return 0
     return ((self.HAS_VALUE * int(node.value is not _SENTINEL)) |
@@ -247,18 +298,20 @@ class Trie(collections.MutableMapping):
     """Returns whether given key is a prefix of another key in the trie."""
     return bool(self.has_node(key) & self.HAS_SUBTRIE)
 
-  def _SliceMaybe(self, key_or_slice):
+  def _slice_maybe(self, key_or_slice):
     """Checks whether argument is a slice or a plain key.
 
     Args:
       key_or_slice: A key or a slice to test.
+
     Returns:
-      (key, is_slice) tuple.  is_slice indicates whether key_or_slice is
-      a slice and key is either key_or_slice itself (if it's not a slice) or
-      slice's start position.
+      ``(key, is_slice)`` tuple.  ``is_slice`` indicates whether
+      ``key_or_slice`` is a slice and ``key`` is either ``key_or_slice`` itself
+      (if it's not a slice) or slice's start position.
+
     Raises:
-      TypeError: If key_or_slice is a slice whose stop or step are not None.
-        In other words, only [key:] slices are valid.
+      TypeError: If ``key_or_slice`` is a slice whose stop or step are not
+        ``None`` In other words, only ``[key:]`` slices are valid.
     """
     if isinstance(key_or_slice, slice):
       if key_or_slice.stop is not None or key_or_slice.step is not None:
@@ -271,37 +324,42 @@ class Trie(collections.MutableMapping):
 
     Args:
       key_or_slice: A key or a slice to look for.
+
     Returns:
-      If a single key is passed, a value associated with given key.  If
-      a slice is passed, a generator of values in specified subtrie.
+      If a single key is passed, a value associated with given key.  If a slice
+      is passed, a generator of values in specified subtrie.
+
     Raises:
-      ShortKeyError: If the key has no value associated with it but is
-        a prefix of some key with a value.
+      ShortKeyError: If the key has no value associated with it but is a prefix
+          of some key with a value.  Note that :class:`ShortKeyError` is
+          subclass of :class:`KeyError`.
       KeyError: If key has no value associated with it nor is a prefix of an
-        existing key.
-      TypeError: If key_or_slice is a slice but it's stop or step are not None.
+          existing key.
+      TypeError: If ``key_or_slice`` is a slice but it's stop or step are not
+          ``None``.
     """
-    if self._SliceMaybe(key_or_slice)[1]:
+    if self._slice_maybe(key_or_slice)[1]:
       return self.itervalues(key_or_slice.start)
-    node, _ = self._GetNode(key_or_slice)
+    node, _ = self._get_node(key_or_slice)
     if node.value is _SENTINEL:
       raise ShortKeyError(key_or_slice)
     return node.value
 
-  def _Set(self, key, value, only_if_missing=False, clear_children=False):
+  def _set(self, key, value, only_if_missing=False, clear_children=False):
     """Sets value for a given key.
 
     Args:
       key: Key to set value of.
       value: Value to set to.
-      only_if_missing: If True, value won't be changed if the key is
-        already associated with a value.
-      clear_children: If True, all children of the node, if any, will
-        be removed.
+      only_if_missing: If ``True``, value won't be changed if the key is already
+          associated with a value.
+      clear_children: If ``True``, all children of the node, if any, will be
+          removed.
+
     Returns:
       Value of the node.
     """
-    node, _ = self._GetNode(key, create=True)
+    node, _ = self._get_node(key, create=True)
     if not only_if_missing or node.value is _SENTINEL:
       node.value = value
     if clear_children:
@@ -312,29 +370,31 @@ class Trie(collections.MutableMapping):
     """Sets value associated with given key.
 
     Args:
-      key_or_slice: A key to look for, or a slice.  If it is a slice, the
-        whole subtrie (if present) will be replaced by a single node with
-        given value set.
+      key_or_slice: A key to look for, or a slice.  If it is a slice, the whole
+          subtrie (if present) will be replaced by a single node with given
+          value set.
       value: Value to set.
+
     Raises:
-      ShortKeyError: If the key has no value associated with it but is
-        a prefix of some key with a value.
+      ShortKeyError: If the key has no value associated with it but is a prefix
+          of some key with a value.  Note that :class:`ShortKeyError` is
+          subclass of :class:`KeyError`.
       KeyError: If key has no value associated with it nor is a prefix of an
-        existing key.
+          existing key.
       TypeError: If key is a slice whose stop or step are not None.
     """
-    key, is_slice = self._SliceMaybe(key_or_slice)
-    self._Set(key, value, clear_children=is_slice)
+    key, is_slice = self._slice_maybe(key_or_slice)
+    self._set(key, value, clear_children=is_slice)
 
   def setdefault(self, key, value):
     """Sets value of a given node if not set already.  Returns it afterwards."""
-    return self._Set(key, value, only_if_missing=True)
+    return self._set(key, value, only_if_missing=True)
 
-  def _CleanupTrace(self, trace):
-    """Removes empty nodes going on specified trace.
+  def _cleanup_trace(self, trace):
+    """Removes empty nodes present on specified trace.
 
     Args:
-      trace: Trace to the node to cleanup as returned by _GetNode().
+      trace: Trace to the node to cleanup as returned by :func:`Trie._get_node`.
     """
     i = len(trace) - 1  # len(path) >= 1 since root is always there
     step, node = trace[i]
@@ -344,23 +404,25 @@ class Trie(collections.MutableMapping):
       del parent.children[step]
       step, node = parent_step, parent
 
-  def _PopFromNode(self, node, trace, default=_SENTINEL):
-    """Remove a value from given node.
+  def _pop_from_node(self, node, trace, default=_SENTINEL):
+    """Removes a value from given node.
 
     Args:
       node: Node to get value of.
-      trace: Trace to that node as returned by _GetNode().
+      trace: Trace to that node as returned by :func:`Trie._get_node`.
       default: A default value to return if node has no value set.
+
     Returns:
-      Value of the node or default.
+      Value of the node or ``default``.
+
     Raises:
-      ShortKeyError: If the key has no value associated with it but is
-        a prefix of some key with a value.
+      ShortKeyError: If the node has no value associated with it and ``default``
+          has not been given.
     """
     if node.value is not _SENTINEL:
       value = node.value
       node.value = _SENTINEL
-      self._CleanupTrace(trace)
+      self._cleanup_trace(trace)
       return value
     elif default is _SENTINEL:
       raise ShortKeyError()
@@ -372,20 +434,23 @@ class Trie(collections.MutableMapping):
 
     Args:
       key: A key to look for.  Must be iterable.
-      default: If specified value that will be returned if given key has no
-        value associated with it.  If not specified, method will throw
-        KeyError in such cases.
+      default: If specified, value that will be returned if given key has no
+          value associated with it.  If not specified, method will throw
+          KeyError in such cases.
+
     Returns:
-      Removed value, if key had value associated with it, or default value
-      (if given).
+      Removed value, if key had value associated with it, or ``default`` (if
+      given).
+
     Raises:
-      ShortKeyError: If default has not been specified and the key has no
-        value associated with it but is a prefix of some key with a value.
+      ShortKeyError: If ``default`` has not been specified and the key has no
+          value associated with it but is a prefix of some key with a value.
+          Note that :class:`ShortKeyError` is subclass of :class:`KeyError`.
       KeyError: If default has not been specified and key has no value
-        associated with it nor is a prefix of an existing key.
+          associated with it nor is a prefix of an existing key.
     """
     try:
-      return self._PopFromNode(*self._GetNode(key))
+      return self._pop_from_node(*self._get_node(key))
     except KeyError:
       if default is not _SENTINEL:
         return default
@@ -395,9 +460,10 @@ class Trie(collections.MutableMapping):
     """Deletes a value from the trie.
 
     Returns:
-      (key, value) tuple indicating deleted key.
+      ``(key, value)`` tuple indicating deleted key.
+
     Raises:
-      KeyError: If trie is empty.
+      KeyError: If the trie is empty.
     """
     if not self:
       raise KeyError()
@@ -407,47 +473,50 @@ class Trie(collections.MutableMapping):
       step = next(node.children.iterkeys())
       node = node.children[step]
       trace.append((step, node))
-    return (self._KeyFromPath((step for step, _ in trace[1:])),
-            self._PopFromNode(node, trace))
+    return (self._key_from_path((step for step, _ in trace[1:])),
+            self._pop_from_node(node, trace))
 
   def __delitem__(self, key_or_slice):
     """Deletes value associated with given key or raises KeyError.
 
     Args:
       key_or_slice: A key to look for, or a slice.  If key is a slice, the
-        whole subtrie will be removed.
+          whole subtrie will be removed.
+
     Raises:
-      ShortKeyError: If the key has no value associated with it but is
-        a prefix of some key with a value.  This is not thrown is key_or_slice
-        is a slice -- in such cases, the whole subtrie is removed.
+      ShortKeyError: If the key has no value associated with it but is a prefix
+          of some key with a value.  This is not thrown is key_or_slice is
+          a slice -- in such cases, the whole subtrie is removed.  Note that
+          :class:`ShortKeyError` is subclass of :class:`KeyError`.
       KeyError: If key has no value associated with it nor is a prefix of an
-        existing key.
-      TypeError: If key is a slice whose stop or step are not None.
+          existing key.
+      TypeError: If key is a slice whose stop or step are not ``None``.
     """
-    key, is_slice = self._SliceMaybe(key_or_slice)
-    node, trace = self._GetNode(key)
+    key, is_slice = self._slice_maybe(key_or_slice)
+    node, trace = self._get_node(key)
     if is_slice:
       node.children.clear()
     elif node.value is _SENTINEL:
       raise ShortKeyError(key)
     node.value = _SENTINEL
-    self._CleanupTrace(trace)
+    self._cleanup_trace(trace)
 
-  def _WalkPath(self, key):
+  def prefixes(self, key):
     """Walks towards the node specified by key and yields all found values.
 
     Args:
       key: Key to look for.
+
     Yields:
-      (path, value) where path is a path to a node and value is value
-      associated with that node.
+      ``(k, value)`` pairs denoting keys with associated values encountered on
+      the way towards the specified key.
     """
     node = self._root
-    path = self.__PathFromKey(key)
+    path = self.__path_from_key(key)
     pos = 0
     while True:
       if node.value is not _SENTINEL:
-        yield (path[:pos], node.value)
+        yield self._key_from_path(path[:pos]), node.value
       if pos == len(path):
         break
       node = node.children.get(path[pos])
@@ -455,45 +524,36 @@ class Trie(collections.MutableMapping):
         break
       pos += 1
 
-  class FindPrefixResult(collections.namedtuple('FindPrefixResult',
-                                                'key value')):
-
-    def __nonzero__(self):
-      return self.key is not None
-
-  def FindShortestPrefix(self, key):
-    """Finds a shortest prefix of key with a value.
+  def shortest_prefix(self, key):
+    """Finds the shortest prefix of a key with a value.
 
     Args:
       key: Key to look for.
-    Returns:
-      FindPrefixResult(k, value) where k is the shortest prefix of key (it may
-      be equal key) and value is value associated with that key.  If no node
-      is found, FindPrefixResult(None, None) is returned, which evaluates to
-      False in boolean context by the way.
-    """
-    for path, value in self._WalkPath(key):
-      return self.FindPrefixResult(self._KeyFromPath(path), value)
-    return self.FindPrefixResult(None, None)
 
-  def FindLongestPrefix(self, key):
-    """Finds a longest prefix of key with a value.
+    Returns:
+      ``(k, value)`` where ``k`` is the shortest prefix of ``key`` (it may equal
+      ``key``) and ``value`` is a value associated with that key.  If no node is
+      found, ``(None, None)`` is returned.
+    """
+    for ret in self.prefixes(key):
+      return ret
+    return (None, None)
+
+  def longest_prefix(self, key):
+    """Finds the longest prefix of a key with a value.
 
     Args:
       key: Key to look for.
+
     Returns:
-      FindPrefixResult(k, value) where k is the longest prefix of key (it may
-      be equal key) and value is value associated with that key.  If no node
-      is found, FindPrefixResult(None, None) is returned, which evaluates to
-      False in boolean context by the way.
+      ``(k, value)`` where ``k`` is the longest prefix of ``key`` (it may equal
+      ``key``) and ``value`` is a value associated with that key.  If no node is
+      found, ``(None, None)`` is returned.
     """
-    ret = None
-    for ret in self._WalkPath(key):
+    ret = (None, None)
+    for ret in self.prefixes(key):
       pass
-    if ret:
-      return self.FindPrefixResult(self._KeyFromPath(ret[0]), ret[1])
-    else:
-      return self.FindPrefixResult(None, None)
+    return ret
 
   def __eq__(self, other):
     return self._root == other._root  # pylint: disable=protected-access
@@ -512,33 +572,38 @@ class Trie(collections.MutableMapping):
     else:
       return 'Trie()'
 
-  def __PathFromKey(self, key):
+  def __path_from_key(self, key):
     """Converts a user visible key object to internal path representation.
 
     Args:
-      key: User supplied key or _SENTINEL.
-    Returns:
-      () if key was _SENTINEL, otherwise whatever _PathFroMKey returns.
-    Raises:
-      TypeError: If key is of invalid type.
-    """
-    return () if key is _SENTINEL else self._PathFromKey(key)
+      key: User supplied key or ``_SENTINEL``.
 
-  def _PathFromKey(self, key):
+    Returns:
+      An empty tuple if ``key`` was ``_SENTINEL``, otherwise whatever
+      :func:`Trie._path_from_key` returns.
+
+    Raises:
+      TypeError: If ``key`` is of invalid type.
+    """
+    return () if key is _SENTINEL else self._path_from_key(key)
+
+  def _path_from_key(self, key):
     """Converts a user visible key object to internal path representation.
 
     The default implementation simply returns key.
 
     Args:
       key: User supplied key.
+
     Returns:
       A path, which is an iterable of steps.  Each step must be hashable.
+
     Raises:
       TypeError: If key is of invalid type.
     """
     return key
 
-  def _KeyFromPath(self, path):
+  def _key_from_path(self, path):
     """Converts an internal path into a user visible key object.
 
     The default implementation creates a tuple from the path.
@@ -552,38 +617,37 @@ class Trie(collections.MutableMapping):
 
 
 class CharTrie(Trie):
-  """A variant of a Trie which accepts strings as keys.
+  """A variant of a :class:`trie.Trie` which accepts strings as keys.
 
-  The only difference between CharTrie and Trie is that when CharTrie returns
-  keys back to the client (for instance in keys() method is called), those
-  keys are returned as strings.
+  The only difference between :class:`trie.CharTrie` and :class:`trie.Trie` is
+  that when :class:`trie.CharTrie` returns keys back to the client (for instance
+  in keys() method is called), those keys are returned as strings.
   """
 
-  def _KeyFromPath(self, path):
+  def _key_from_path(self, path):
     return ''.join(path)
 
 
 class StringTrie(Trie):
-  """A variant of a Trie which accepts strings with a separator as keys.
+  """A variant of :class:`trie.Trie` accepting strings with a separator as keys.
 
   The trie accepts stings as keys which are split into components using
   a separator specified during initialisation ("/" by default).
   """
 
   def __init__(self, *args, **kwargs):
-    # pylint: disable=g-doc-args
     """Initialises the trie.
 
-    Except for a "separator" named argument, all other arguments are
-    interpreted like update() does.
+    Except for a ``separator`` named argument, all other arguments are
+    interpreted the same way :func:`Trie.update` interprets them.
 
     Args:
-      *args: Passed to update().
-      **kwargs: Passed to update().
-      separator: A separator to use when separating key into a path used by
-        the trie.  "/" is used if this argument is not specified.  This named
-        argument is not specified on the function's prototype because of
-        Python's limitations.
+      *args: Passed to super class initialiser.
+      **kwargs: Passed to super class initialiser.
+      separator: A separator to use when splitting keys into paths used by the
+          trie.  "/" is used if this argument is not specified.  This named
+          argument is not specified on the function's prototype because of
+          Python's limitations.
     """
     self._separator = kwargs.pop('separator', '/')
     super(StringTrie, self).__init__(*args, **kwargs)
@@ -595,8 +659,132 @@ class StringTrie(Trie):
       trie[key] = value
     return trie
 
-  def _PathFromKey(self, key):
+  def _path_from_key(self, key):
     return key.split(self._separator)
 
-  def _KeyFromPath(self, path):
+  def _key_from_path(self, path):
     return self._separator.join(path)
+
+
+class PrefixSet(collections.MutableSet):
+  """A set of prefixes.
+
+  :class:`trie.PrefixSet` works similar to a normal set except it is said to
+  contain a key if the key or it's prefix is stored in the set.  For instance,
+  if "foo" is added to the set, the set contains "foo" as well as "foobar".
+
+  The set supports addition of elements but does *not* support removal of
+  elements.  This is because there's no obvious consistent and intuitive
+  behaviour for element deletion.
+  """
+
+  def __init__(self, iterable=None, factory=Trie, **kwargs):
+    """Initialises the prefix set.
+
+    Args:
+      iterable: A sequence of keys to add to the set.
+      factory: A function used to create a trie used by the
+          :class:`trie.PrefixSet`.
+      kwargs: Additional keyword arguments passed to the factory function.
+    """
+    trie = factory(**kwargs)
+    if iterable:
+      trie.update((key, True) for key in iterable)
+    self._trie = trie
+
+  def copy(self):
+    """Returns a copy of the prefix set."""
+    return self.__class__(self._trie)
+
+  def clear(self):
+    """Removes all keys from the set."""
+    self._trie.clear()
+
+  def __contains__(self, key):
+    """Checks whether set contains key or its prefix."""
+    return bool(self._trie.shortest_prefix(key)[1])
+
+  def __iter__(self):
+    """Return iterator over all prefixes in the set.
+
+    See :func:`PrefixSet.iter` method for more info.
+    """
+    return self._trie.iterkeys()
+
+  def iter(self, prefix=_SENTINEL):
+    """Iterates over all keys in the set optionally starting with a prefix.
+
+    Since a key does not have to be explicitly added to the set to be an element
+    of the set, this method does not iterate over all possible keys that the set
+    contains, but only over the shortest set of prefixes of all the keys the set
+    contains.
+
+    For example, if "foo" has been added to the set, the set contains also
+    "foobar", but this method will *not* iterate over "foobar".
+
+    If ``prefix`` argument is given, method will iterate over keys with given
+    prefix only.  The keys yielded from the function if prefix is given does not
+    have to be a subset (in mathematical sense) of the keys yielded when there
+    is not prefix.  This happens, if the set contains a prefix of the given
+    prefix.
+
+    For example, if only "foo" has been added to the set, iter method called
+    with no arguments will yield "foo" only.  However, when called with
+    "foobar" argument, it will yield "foobar" only.
+    """
+    if prefix is _SENTINEL:
+      return iter(self)
+    elif self._trie.has_node(prefix):
+      return self._trie.iterkeys(prefix=prefix)
+    elif prefix in self:
+      # Make sure the type of returned keys is consistent.
+      return (self._trie._key_from_path(self._trie._path_from_key(prefix)),)
+    else:
+      return ()
+
+  def __len__(self):
+    """Returns number of keys stored in the set.
+
+    Since a key does not have to be explicitly added to the set to be an element
+    of the set, this method does not count over all possible keys that the set
+    contains (since that would be infinity), but only over the shortest set of
+    prefixes of all the keys the set contains.
+
+    For example, if "foo" has been added to the set, the set contains also
+    "foobar", but this method will *not* count "foobar".
+    """
+    return len(self._trie)
+
+  def add(self, key):
+    """Adds given key to the set.
+
+    If the set already contains prefix of the key being added, this operation
+    has no effect.  If the key being added is a prefix of some existing keys
+    in the set, those keys are deleted and replaced by a single entry for the
+    key being added.
+
+    For example, if the set contains key "foo" adding a key "foobar" does not
+    change anything.  On the other hand, if the set contains keys "foobar" and
+    "foobaz", adding a key "foo" will replace those two keys with a single key
+    "foo".
+
+    This makes a difference when iterating over the keys or counting number of
+    keys.  Counter intuitively, adding of a key can *decrease* size of the set.
+
+    Args:
+      key: Key to add.
+    """
+    if key not in self:
+      self._trie[key:] = True
+
+  def discard(self, key):
+    raise NotImplementedError(
+      'Removing keys from PrefixSet is not implemented.')
+
+  def remove(self, key):
+    raise NotImplementedError(
+      'Removing keys from PrefixSet is not implemented.')
+
+  def pop(self):
+    raise NotImplementedError(
+      'Removing keys from PrefixSet is not implemented.')

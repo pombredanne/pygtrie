@@ -64,9 +64,9 @@ t['/foobar'] = lambda url: sys.stdout.write('FooBar handler: %s\n' % url)
 t['/baz'] = lambda url: sys.stdout.write('Baz handler: %s\n' % url)
 
 for url in ('/', '/foo', '/foot', '/foobar', 'invalid', '/foobarbaz', '/ba'):
-    handler = t.FindLongestPrefix(url)
-    if handler:
-        handler.value(url)
+    key, handler = t.longest_prefix(url)
+    if key is not None:
+        handler(url)
     else:
         print 'Unable to handle', repr(url)
 
@@ -92,6 +92,24 @@ except ImportError:
         from msvcrt import getch
     except ImportError:
         sys.exit(0)
+
+
+print
+print 'Prefix set'
+print '=========='
+print
+
+ps = trie.PrefixSet(factory=trie.StringTrie)
+
+ps.add('/etc/rc.d')
+ps.add('/usr/local/share')
+ps.add('/usr/local/lib')
+ps.add('/usr')  # Will handle the above two as well
+ps.add('/usr/lib')  # Does not change anything
+
+print 'Path prefixes:', ', '.join(iter(ps))
+for path in ('/etc', '/etc/rc.d', '/usr', '/usr/local', '/usr/local/lib'):
+    print 'Is', path, 'in the set:', ('yes' if path in ps else 'no')
 
 
 print

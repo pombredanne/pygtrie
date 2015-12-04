@@ -1,4 +1,6 @@
 *.pyc
+.version
 MANIFEST
+build/
 dist/
-RELEASE-VERSION
+html/

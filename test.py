@@ -69,7 +69,7 @@ class TrieTestCase(unittest.TestCase):
   # A key that is not set but _LONG_KEY is it's prefix
   _VERY_LONG_KEY = _LONG_KEY + 'baz'
   # A key that is not set and has no relation to other keys
-  _MISSING_KEY = 'qux'
+  _OTHER_KEY = 'qux'
   # A list of prefixes of _SHORT_KEY
   _SHORT_PREFIXES = ('', 'f', 'fo')
   # A list of prefixes of _LONG_KEY which are not prefixes of _SHORT_KEY nor
@@ -139,7 +139,7 @@ class TrieTestCase(unittest.TestCase):
     self.assertNodeState(t, self._SHORT_KEY, prefix=True, value=value)
     self.assertNodeState(t, self._LONG_KEY, value=value)
     self.assertNodeState(t, self._VERY_LONG_KEY)
-    self.assertNodeState(t, self._MISSING_KEY)
+    self.assertNodeState(t, self._OTHER_KEY)
 
   def assertShortTrie(self, t, value=42):
     """Asserts a trie has only _SHORT_KEY set to value."""
@@ -147,7 +147,7 @@ class TrieTestCase(unittest.TestCase):
     for prefix in self._SHORT_PREFIXES:
       self.assertNodeState(t, prefix, prefix=True)
     for key in self._LONG_PREFIXES + (
-        self._LONG_KEY, self._VERY_LONG_KEY, self._MISSING_KEY):
+        self._LONG_KEY, self._VERY_LONG_KEY, self._OTHER_KEY):
       self.assertNodeState(t, key)
     self.assertNodeState(t, self._SHORT_KEY, value=value)
 
@@ -157,7 +157,7 @@ class TrieTestCase(unittest.TestCase):
 
     for key in self._SHORT_PREFIXES + self._LONG_PREFIXES + (
         self._SHORT_KEY, self._LONG_KEY, self._VERY_LONG_KEY,
-        self._MISSING_KEY):
+        self._OTHER_KEY):
       self.assertNodeState(t, key)
 
     self.assertRaises(KeyError, t.popitem)
@@ -229,6 +229,24 @@ class TrieTestCase(unittest.TestCase):
     self.assertEquals([long_key], sorted(t.keys(prefix=prefix)))
     self.assertEquals([long_key], sorted(t.iterkeys(prefix=prefix)))
 
+  def DoTestShallowIterator(self, trie_factory):
+    """Shallow iterator test."""
+    d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
+    t = trie_factory(self._TRIE_CLS, d)
+
+    self.assertEquals([42], t.values(shallow=True))
+    self.assertEquals([42], list(t.itervalues(shallow=True)))
+
+    short_key = self.KeyFromKey(self._SHORT_KEY)
+    long_key = self.KeyFromKey(self._LONG_KEY)
+
+    expected_items = [(short_key, 42)]
+    self.assertEquals(expected_items, sorted(t.items(shallow=True)))
+    self.assertEquals(expected_items, sorted(t.iteritems(shallow=True)))
+
+    self.assertEquals([short_key], sorted(t.keys(shallow=True)))
+    self.assertEquals([short_key], sorted(t.iterkeys(shallow=True)))
+
   def DoTestSpliceOperations(self, trie_factory):
     """Splice trie operations tests."""
     d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
@@ -258,21 +276,61 @@ class TrieTestCase(unittest.TestCase):
     long_pair = (self.KeyFromKey(self._LONG_KEY), 42)
     none_pair = (None, None)
 
-    self.assertEquals(short_pair, t.FindShortestPrefix(self._VERY_LONG_KEY))
-    self.assertEquals(short_pair, t.FindShortestPrefix(self._LONG_KEY))
-    self.assertEquals(short_pair, t.FindShortestPrefix(self._LONG_PREFIXES[-1]))
-    self.assertEquals(short_pair, t.FindShortestPrefix(self._SHORT_KEY))
-    self.assertEquals(none_pair, t.FindShortestPrefix(self._SHORT_PREFIXES[-1]))
+    self.assertEquals(short_pair, t.shortest_prefix(self._VERY_LONG_KEY))
+    self.assertEquals(short_pair, t.shortest_prefix(self._LONG_KEY))
+    self.assertEquals(short_pair, t.shortest_prefix(self._VERY_LONG_KEY))
+    self.assertEquals(short_pair, t.shortest_prefix(self._LONG_PREFIXES[-1]))
+    self.assertEquals(short_pair, t.shortest_prefix(self._SHORT_KEY))
+    self.assertEquals(none_pair, t.shortest_prefix(self._SHORT_PREFIXES[-1]))
 
-    self.assertEquals(long_pair, t.FindLongestPrefix(self._VERY_LONG_KEY))
-    self.assertEquals(long_pair, t.FindLongestPrefix(self._LONG_KEY))
-    self.assertEquals(short_pair, t.FindShortestPrefix(self._LONG_PREFIXES[-1]))
-    self.assertEquals(short_pair, t.FindLongestPrefix(self._SHORT_KEY))
-    self.assertEquals(none_pair, t.FindShortestPrefix(self._SHORT_PREFIXES[-1]))
+    self.assertEquals(long_pair, t.longest_prefix(self._VERY_LONG_KEY))
+    self.assertEquals(long_pair, t.longest_prefix(self._LONG_KEY))
+    self.assertEquals(long_pair, t.longest_prefix(self._VERY_LONG_KEY))
+    self.assertEquals(short_pair, t.shortest_prefix(self._LONG_PREFIXES[-1]))
+    self.assertEquals(short_pair, t.longest_prefix(self._SHORT_KEY))
+    self.assertEquals(none_pair, t.shortest_prefix(self._SHORT_PREFIXES[-1]))
 
-    self.assertTrue(t.FindShortestPrefix(self._VERY_LONG_KEY))
-    self.assertTrue(t.FindLongestPrefix(self._VERY_LONG_KEY))
-    self.assertFalse(t.FindShortestPrefix(self._SHORT_PREFIXES[-1]))
+    self.assertEquals([], list(t.prefixes(self._SHORT_PREFIXES[-1])))
+    self.assertEquals([short_pair], list(t.prefixes(self._SHORT_KEY)))
+    self.assertEquals([short_pair], list(t.prefixes(self._LONG_PREFIXES[-1])))
+    self.assertEquals([short_pair, long_pair], list(t.prefixes(self._LONG_KEY)))
+    self.assertEquals([short_pair, long_pair],
+                      list(t.prefixes(self._VERY_LONG_KEY)))
+
+  def testPrefixSet(self):
+    """PrefixSet test."""
+    ps = trie.PrefixSet(factory=self._TRIE_CLS)
+
+    short_key = self.KeyFromKey(self._SHORT_KEY)
+    long_key = self.KeyFromKey(self._LONG_KEY)
+    very_long_key = self.KeyFromKey(self._VERY_LONG_KEY)
+    other_key = self.KeyFromKey(self._OTHER_KEY)
+
+    for key in (self._LONG_KEY, self._VERY_LONG_KEY):
+      ps.add(key)
+      self.assertEquals(1, len(ps))
+      self.assertEquals([long_key], list(ps.iter()))
+      self.assertEquals([long_key], list(iter(ps)))
+      self.assertEquals([long_key], list(ps.iter(self._SHORT_KEY)))
+      self.assertEquals([long_key], list(ps.iter(self._LONG_KEY)))
+      self.assertEquals([very_long_key], list(ps.iter(self._VERY_LONG_KEY)))
+      self.assertEquals([], list(ps.iter(self._OTHER_KEY)))
+
+    ps.add(self._SHORT_KEY)
+    self.assertEquals(1, len(ps))
+    self.assertEquals([short_key], list(ps.iter()))
+    self.assertEquals([short_key], list(iter(ps)))
+    self.assertEquals([short_key], list(ps.iter(self._SHORT_KEY)))
+    self.assertEquals([long_key], list(ps.iter(self._LONG_KEY)))
+    self.assertEquals([], list(ps.iter(self._OTHER_KEY)))
+
+    ps.add(self._OTHER_KEY)
+    self.assertEquals(2, len(ps))
+    self.assertEquals(sorted((short_key, other_key)),
+                      list(ps.iter()))
+    self.assertEquals([short_key], list(ps.iter(self._SHORT_KEY)))
+    self.assertEquals([long_key], list(ps.iter(self._LONG_KEY)))
+    self.assertEquals([other_key], list(ps.iter(self._OTHER_KEY)))
 
   def testEquality(self):
     """Tests equality comparison."""
@@ -287,7 +345,7 @@ class TrieTestCase(unittest.TestCase):
                          tries[i], _TRIE_FACTORIES[i][0]))
 
     for i in range(1, len(tries)):
-      tries[i-1][self._MISSING_KEY] = 42
+      tries[i-1][self._OTHER_KEY] = 42
       self.assertNotEquals(
           tries[i-1], tries[i],
           '%r (factory: %s) should not be equal %r (factory: %s)' %
@@ -320,7 +378,7 @@ class StringTrieTestCase(TrieTestCase):
   _SHORT_KEY = '/home/foo'
   _LONG_KEY = _SHORT_KEY + '/bar/baz'
   _VERY_LONG_KEY = _LONG_KEY + '/qux'
-  _MISSING_KEY = '/hom'
+  _OTHER_KEY = '/hom'
   _SHORT_PREFIXES = ('', '/home')
   _LONG_PREFIXES = ('/home/foo/bar',)
 
