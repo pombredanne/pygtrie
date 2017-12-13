@@ -2,11 +2,11 @@ pygtrie
 =======
 
 .. image:: https://readthedocs.org/projects/pygtrie/badge/?version=latest
-   :target: http://pygtrie.readthedocs.org/en/latest/
+   :target: http://pygtrie.readthedocs.io/en/latest/
    :alt: Documentation Status (latest)
 
 .. image:: https://readthedocs.org/projects/pygtrie/badge/?version=stable
-   :target: http://pygtrie.readthedocs.org/en/stable/
+   :target: http://pygtrie.readthedocs.io/en/stable/
    :alt: Documentation Status (stable)
 
 pygtrie is a Python library implementing a trie data structure.
@@ -45,8 +45,22 @@ Features
 Installation
 ------------
 
-To install bz2file, run::
+To install pygtrie, run::
 
     pip install pygtrie
 
-Or download the sources and save ``trie.py`` file with your project.
+Or download the sources and save ``pygtrie.py`` file with your
+project.
+
+Upgrading from 0.9.x
+--------------------
+
+The 1.0 release introduced backwards incompatibility in naming.  The
+module has been renamed from ``trie`` to ``pygtrie``.  Fortunately,
+updating scripts using pygtrie should boil down to replacing::
+
+    from pytrie import trie
+
+with::
+
+    import pygtrie as trie
