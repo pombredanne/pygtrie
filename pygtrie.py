@@ -534,8 +534,6 @@ class Trie(_collections.MutableMapping):
         """
         return list(self.itervalues(prefix=prefix, shallow=shallow))
 
-    # pylint: enable=arguments-differ
-
     def __len__(self):
         """Returns number of values in a trie.
 
@@ -598,7 +596,7 @@ class Trie(_collections.MutableMapping):
         except KeyError:
             return 0
         return ((self.HAS_VALUE * int(node.value is not _SENTINEL)) |
-                        (self.HAS_SUBTRIE * int(bool(node.children))))
+                (self.HAS_SUBTRIE * int(bool(node.children))))
 
     def has_key(self, key):
         """Indicates whether given key has value associated with it.
@@ -834,7 +832,7 @@ class Trie(_collections.MutableMapping):
             node = node.children[step]
             trace.append((step, node))
         return (self._key_from_path((step for step, _ in trace[1:])),
-                        self._pop_from_node(node, trace))
+                self._pop_from_node(node, trace))
 
     def __delitem__(self, key_or_slice):
         """Deletes value associated with given key or raises KeyError.
@@ -987,13 +985,13 @@ class Trie(_collections.MutableMapping):
         return self._root != other._root  # pylint: disable=protected-access
 
     def __str__(self):
-        return 'Trie(%s)' % (
-                ', '.join('%s: %s' % item for item in self.iteritems()))
+        return 'Trie(%s)' % ', '.join(
+            '%s: %s' % item for item in self.iteritems())
 
     def __repr__(self):
         if self:
-            return  'Trie((%s,))' % (
-                    ', '.join('(%r, %r)' % item for item in self.iteritems()))
+            return  'Trie((%s,))' % ', '.join(
+                '(%r, %r)' % item for item in self.iteritems())
         else:
             return 'Trie()'
 
@@ -1247,7 +1245,7 @@ class StringTrie(Trie):
         return self._separator.join(path)
 
 
-class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-used
+class PrefixSet(_collections.MutableSet):
     """A set of prefixes.
 
     :class:`pygtrie.PrefixSet` works similar to a normal set except it is said
@@ -1269,7 +1267,6 @@ class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-
                     :class:`pygtrie.PrefixSet`.
             kwargs: Additional keyword arguments passed to the factory function.
         """
-        super(PrefixSet, self).__init__()
         trie = factory(**kwargs)
         if iterable:
             trie.update((key, True) for key in iterable)

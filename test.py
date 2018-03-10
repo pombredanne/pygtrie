@@ -14,7 +14,7 @@ import unittest
 import pygtrie
 
 
-# pylint: disable=missing-docstring
+# pylint: disable=missing-docstring,invalid-slice-index
 
 def _update_trie_factory(trie_cls, *args, **kw):
     t = trie_cls()
@@ -30,32 +30,32 @@ def _setter_trie_factory(trie_cls, d):  # pylint: disable=invalid-name
 
 
 _TRIE_FACTORIES = ((
-        'TrieFromNamedArgs',
-        lambda trie_cls, d: trie_cls(**d)
+    'TrieFromNamedArgs',
+    lambda trie_cls, d: trie_cls(**d)
 ), (
-        'TrieFromTuples',
-        lambda trie_cls, d: trie_cls(d.items())
+    'TrieFromTuples',
+    lambda trie_cls, d: trie_cls(d.items())
 ), (
-        'TrieFromDict',
-        lambda trie_cls, d: trie_cls(d)
+    'TrieFromDict',
+    lambda trie_cls, d: trie_cls(d)
 ), (
-        'TrieFromTrie',
-        lambda trie_cls, d: trie_cls(trie_cls(d))
+    'TrieFromTrie',
+    lambda trie_cls, d: trie_cls(trie_cls(d))
 ), (
-        'CopyOfTrie',
-        lambda trie_cls, d: trie_cls(d).copy()
+    'CopyOfTrie',
+    lambda trie_cls, d: trie_cls(d).copy()
 ), (
-        'UpdateWithNamedArgs',
-        lambda trie_cls, d: _update_trie_factory(trie_cls, **d)
+    'UpdateWithNamedArgs',
+    lambda trie_cls, d: _update_trie_factory(trie_cls, **d)
 ), (
-        'UpdateWithTuples',
-        lambda trie_cls, d: _update_trie_factory(trie_cls, d.items())
+    'UpdateWithTuples',
+    lambda trie_cls, d: _update_trie_factory(trie_cls, d.items())
 ), (
-        'UpdateWithDict',
-        _update_trie_factory
+    'UpdateWithDict',
+    _update_trie_factory
 ), (
-        'Setters',
-        _setter_trie_factory
+    'Setters',
+    _setter_trie_factory
 ))
 
 
@@ -129,7 +129,7 @@ class TrieTestCase(unittest.TestCase):
             self.assertNotIn(self.key_from_key(key), list(t.iterkeys()))
             self.assertNotIn(self.key_from_key(key), t.keys())
             self.assertEqual(pygtrie.Trie.HAS_SUBTRIE if prefix else 0,
-                                                t.has_node(key))
+                             t.has_node(key))
         else:
             self.assertIn(key, t)
             self.assertEqual(value, t[key])
@@ -173,8 +173,6 @@ class TrieTestCase(unittest.TestCase):
 
         self.assertEqual('Trie()', str(t))
         self.assertEqual('Trie()', repr(t))
-
-    # pylint: enable=invalid-name
 
     def _do_test_basics(self, trie_factory):
         """Basic trie tests."""
@@ -310,16 +308,16 @@ class TrieTestCase(unittest.TestCase):
         self.assertEqual([], list(t.prefixes(self._SHORT_PREFIXES[-1])))
         self.assertEqual([short_pair], list(t.prefixes(self._SHORT_KEY)))
         self.assertEqual([short_pair],
-                          list(t.prefixes(self._LONG_PREFIXES[-1])))
+                         list(t.prefixes(self._LONG_PREFIXES[-1])))
         self.assertEqual([short_pair, long_pair],
-                          list(t.prefixes(self._LONG_KEY)))
+                         list(t.prefixes(self._LONG_KEY)))
         self.assertEqual([short_pair, long_pair],
-                          list(t.prefixes(self._VERY_LONG_KEY)))
+                         list(t.prefixes(self._VERY_LONG_KEY)))
 
     def _do_test_pickle(self, trie_factory):
         """https://github.com/google/pygtrie/issues/7"""
         d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY, self._VERY_LONG_KEY,
-                                             self._OTHER_KEY), 42)
+                           self._OTHER_KEY), 42)
         t = trie_factory(self._TRIE_CLS, d)
 
         pickled = pickle.dumps(t)
@@ -344,7 +342,7 @@ class TrieTestCase(unittest.TestCase):
             self.assertEqual([long_key], list(ps.iter(self._SHORT_KEY)))
             self.assertEqual([long_key], list(ps.iter(self._LONG_KEY)))
             self.assertEqual([very_long_key],
-                              list(ps.iter(self._VERY_LONG_KEY)))
+                             list(ps.iter(self._VERY_LONG_KEY)))
             self.assertEqual([], list(ps.iter(self._OTHER_KEY)))
 
         ps.add(self._SHORT_KEY)
@@ -357,8 +355,7 @@ class TrieTestCase(unittest.TestCase):
 
         ps.add(self._OTHER_KEY)
         self.assertEqual(2, len(ps))
-        self.assertEqual(sorted((short_key, other_key)),
-                          sorted(ps.iter()))
+        self.assertEqual(sorted((short_key, other_key)), sorted(ps.iter()))
         self.assertEqual([short_key], list(ps.iter(self._SHORT_KEY)))
         self.assertEqual([long_key], list(ps.iter(self._LONG_KEY)))
         self.assertEqual([other_key], list(ps.iter(self._OTHER_KEY)))
@@ -370,18 +367,19 @@ class TrieTestCase(unittest.TestCase):
         tries = [factory(self._TRIE_CLS, d) for _, factory in _TRIE_FACTORIES]
 
         for i in range(1, len(tries)):
-            self.assertEqual(tries[i-1], tries[i],
-                              '%r (factory: %s) should equal %r (factory: %s)' %
-                              (tries[i-1], _TRIE_FACTORIES[i-1][0],
-                               tries[i], _TRIE_FACTORIES[i][0]))
+            self.assertEqual(
+                tries[i-1], tries[i],
+                '%r (factory: %s) should equal %r (factory: %s)' %
+                (tries[i-1], _TRIE_FACTORIES[i-1][0],
+                 tries[i], _TRIE_FACTORIES[i][0]))
 
         for i in range(1, len(tries)):
             tries[i-1][self._OTHER_KEY] = 42
             self.assertNotEqual(
-                    tries[i-1], tries[i],
-                    '%r (factory: %s) should not be equal %r (factory: %s)' %
-                    (tries[i-1], _TRIE_FACTORIES[i-1][0],
-                     tries[i], _TRIE_FACTORIES[i][0]))
+                tries[i-1], tries[i],
+                '%r (factory: %s) should not be equal %r (factory: %s)' %
+                (tries[i-1], _TRIE_FACTORIES[i-1][0],
+                 tries[i], _TRIE_FACTORIES[i][0]))
 
 
 def _construct_trie_test_cases():
@@ -389,7 +387,7 @@ def _construct_trie_test_cases():
     def make_test_method(method, factory):
         return lambda self: method(self, trie_factory=factory)
 
-    for name in list(TrieTestCase.__dict__.keys()):
+    for name in list(TrieTestCase.__dict__):
         if not name.startswith('_do_test_'):
             continue
         orig = getattr(TrieTestCase, name)
