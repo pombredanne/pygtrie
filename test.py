@@ -3,7 +3,8 @@
 """trie module unit tests."""
 
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
-__copyright__ = 'Copyright 2014 Google Inc.'
+__copyright__ = ('Copyright 2014-2017 Google LLC',
+                 'Copyright 2018 Michal Nazarewicz <mina86@mina86.com>')
 
 
 import array
@@ -591,6 +592,66 @@ class RecursionTest(unittest.TestCase):
 
     def test_copy(self):
         self.create_trie().copy()
+
+    # This code is taken from traverse docstring
+    _Node = collections.namedtuple('Node', 'label neighbours')
+
+    @classmethod
+    def _undirected_graph_from_trie(cls, t):
+        """Converts trie into a graph and returns its nodes."""
+
+        class Builder(object):
+            def __init__(self, path_conv, path, children, _=None):
+                self.node = cls._Node(path_conv(path), [])
+                self.children = children
+                self.parent = None
+
+            def build(self, queue):
+                for builder in self.children:
+                    builder.parent = self.node
+                    queue.append(builder)
+                if self.parent:
+                    self.parent.neighbours.append(self.node)
+                    self.node.neighbours.append(self.parent)
+                return self.node
+
+        nodes = [t.traverse(Builder)]
+        i = 0
+        while i < len(nodes):
+            nodes[i] = nodes[i].build(nodes)
+            i += 1
+        return nodes
+
+    def test_traverse_small(self):
+        """Test code that is shown in traverse's docstring; test correctness."""
+        t = pygtrie.StringTrie()
+        t['foo/bar/baz'] = True
+        t['foo/qux/baz'] = True
+        t['bar/baz/foo'] = True
+
+        nodes = self._undirected_graph_from_trie(t)
+        got = sorted((f.label, t.label) for f in nodes for t in f.neighbours)
+        self.assertEqual([('', 'bar'),
+                          ('', 'foo'),
+                          ('bar', ''),
+                          ('bar', 'bar/baz'),
+                          ('bar/baz', 'bar'),
+                          ('bar/baz', 'bar/baz/foo'),
+                          ('bar/baz/foo', 'bar/baz'),
+                          ('foo', ''),
+                          ('foo', 'foo/bar'),
+                          ('foo', 'foo/qux'),
+                          ('foo/bar', 'foo'),
+                          ('foo/bar', 'foo/bar/baz'),
+                          ('foo/bar/baz', 'foo/bar'),
+                          ('foo/qux', 'foo'),
+                          ('foo/qux', 'foo/qux/baz'),
+                          ('foo/qux/baz', 'foo/qux')], got)
+
+    def test_traverse_large(self):
+        """Test code that is shown in traverse's docstring; stress test."""
+        nodes = self._undirected_graph_from_trie(self.create_trie())
+        self.assertEqual((100 * 1000 - (100 * 99) / 2) * 2 + 1, len(nodes))
 
 
 if __name__ == '__main__':

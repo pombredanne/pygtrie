@@ -3,7 +3,7 @@
 """trie module example code."""
 
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
-__copyright__ = 'Copyright 2014 Google Inc.'
+__copyright__ = 'Copyright 2014 Google LLC'
 
 # pylint: disable=invalid-name,superfluous-parens,redefined-variable-type
 

@@ -36,7 +36,8 @@ For some simple examples see ``example.py`` file.
 """
 
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
-__copyright__ = 'Copyright 2014 Google Inc.'
+__copyright__ = ('Copyright 2014-2017 Google LLC',
+                 'Copyright 2018 Michal Nazarewicz <mina86@mina86.com>')
 
 
 import collections as _collections
@@ -123,8 +124,8 @@ class _Node(object):
         """Traverses the node and returns another type of node from factory.
 
         Args:
-            node_factory: Callable function to construct new nodes.
-            path_conv: Callable function to convert node path to a key.
+            node_factory: Callable to construct return value.
+            path_conv: Callable to convert node path to a key.
             path: Current path for this node.
             iteritems: A function taking dictionary as argument and returning
                 iterator over its items.  Something other than dict.iteritems
@@ -133,7 +134,7 @@ class _Node(object):
         Returns:
             An object constructed by calling node_factory(path_conv, path,
             children, value=...), where children are constructed by node_factory
-            from the children of this node. There doesn't need to be 1:1
+            from the children of this node.  There doesn't need to be 1:1
             correspondence between original nodes in the trie and constructed
             nodes (see make_test_node_and_compress in test.py).
         """
@@ -1041,11 +1042,11 @@ class Trie(_collections.MutableMapping):
     def traverse(self, node_factory, prefix=_SENTINEL):
         """Traverses the tree using node_factory object.
 
-        node_factory is a callable function which accepts (path_conv, path,
-        children, value=...) arguments, where path_conv is a lambda converting
-        path representation to key, path is the path to this node, children is
-        an iterable of children nodes constructed by node_factory, optional
-        value is the value associated with the path.
+        node_factory is a callable which accepts (path_conv, path, children,
+        value=...) arguments, where path_conv is a lambda converting path
+        representation to key, path is the path to this node, children is an
+        iterable of children nodes constructed by node_factory, optional value
+        is the value associated with the path.
 
         node_factory's children argument is a generator which has a few
         consequences:
@@ -1094,7 +1095,7 @@ class Trie(_collections.MutableMapping):
                     return int(path[-1].endswith('.html'))
                 else:
                     # Otherwise, it's a directory.  Traverse into children.
-                    return sum(int(is_html) for is_html in children)
+                    return sum(children)
 
             print t.traverse(traverse_callback)
 
@@ -1133,9 +1134,36 @@ class Trie(_collections.MutableMapping):
 
             root = t.traverse(traverse_callback)
 
-        Note: Unlike iterators, traverse method uses stack recursion which means
-        that using it on deep tries may lead to a RuntimeError exception thrown
-        once Python's maximum recursion depth is reached.
+        Note: Unlike iterators, when used on a deep trie, traverse method is
+        prone to rising a RuntimeError exception when Python's maximum recursion
+        depth is reached.  This can be addressed by not iterating over children
+        inside of the node_factory.  For example, the below code converts a trie
+        into an undirected graph using adjacency list representation:
+
+            def undirected_graph_from_trie(t):
+                '''Converts trie into a graph and returns its nodes.'''
+
+                class Builder(object):
+                    def __init__(self, path_conv, path, children, _=None):
+                        self.node = Node(path_conv(path), [])
+                        self.children = children
+                        self.parent = None
+
+                    def build(self, queue):
+                        for builder in self.children:
+                            builder.parent = self.node
+                            queue.append(builder)
+                        if self.parent:
+                            self.parent.neighbours.append(self.node)
+                            self.node.neighbours.append(self.parent)
+                        return self.node
+
+                nodes = [t.traverse(Builder)]
+                i = 0
+                while i < len(nodes):
+                    nodes[i] = nodes[i].build(nodes)
+                    i += 1
+                return nodes
 
         Args:
             node_factory: Makes opaque objects from the keys and values of the
