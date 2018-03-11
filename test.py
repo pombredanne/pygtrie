@@ -276,8 +276,8 @@ class TrieTestCase(unittest.TestCase):
         del t[self._SHORT_KEY:]
         self.assertEmptyTrie(t)
 
-    def _do_test_find_prefix(self, trie_factory):
-        """Prefix finding methods tests."""
+    def _do_test_find_one_prefix(self, trie_factory):
+        """Shortest and longest prefix finding methods test."""
         d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
         t = trie_factory(self._TRIE_CLS, d)
 
@@ -298,15 +298,26 @@ class TrieTestCase(unittest.TestCase):
         assert_pair(short_pair, t.shortest_prefix(self._LONG_PREFIXES[-1]))
         assert_pair(short_pair, t.shortest_prefix(self._SHORT_KEY))
         assert_pair(none_pair, t.shortest_prefix(self._SHORT_PREFIXES[-1]))
+        assert_pair(none_pair, t.shortest_prefix(self._OTHER_KEY))
 
         assert_pair(long_pair, t.longest_prefix(self._VERY_LONG_KEY))
         assert_pair(long_pair, t.longest_prefix(self._LONG_KEY))
         assert_pair(long_pair, t.longest_prefix(self._VERY_LONG_KEY))
-        assert_pair(short_pair, t.shortest_prefix(self._LONG_PREFIXES[-1]))
+        assert_pair(short_pair, t.longest_prefix(self._LONG_PREFIXES[-1]))
         assert_pair(short_pair, t.longest_prefix(self._SHORT_KEY))
-        assert_pair(none_pair, t.shortest_prefix(self._SHORT_PREFIXES[-1]))
+        assert_pair(none_pair, t.longest_prefix(self._SHORT_PREFIXES[-1]))
+        assert_pair(none_pair, t.longest_prefix(self._OTHER_KEY))
+
+    def _do_test_find_one_prefix(self, trie_factory):
+        """Key prefixes listing method test."""
+        d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
+        t = trie_factory(self._TRIE_CLS, d)
+
+        short_pair = (self.key_from_key(self._SHORT_KEY), 42)
+        long_pair = (self.key_from_key(self._LONG_KEY), 42)
 
         self.assertEqual([], list(t.prefixes(self._SHORT_PREFIXES[-1])))
+        self.assertEqual([], list(t.prefixes(self._OTHER_KEY)))
         self.assertEqual([short_pair], list(t.prefixes(self._SHORT_KEY)))
         self.assertEqual([short_pair],
                          list(t.prefixes(self._LONG_PREFIXES[-1])))
