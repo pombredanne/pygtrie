@@ -275,13 +275,6 @@ class _Node(object):
                 stack[-1].value = next(state)
 
 
-_NONE_PAIR = type('NonePair', (tuple,), {
-    '__nonzero__': lambda _: False,
-    '__bool__': lambda _: False,
-    '__slots__': (),
-})((None, None))
-
-
 class Trie(_collections.MutableMapping):
     """A trie implementation with dict interface plus some extensions.
 
@@ -878,6 +871,130 @@ class Trie(_collections.MutableMapping):
         node.value = _SENTINEL
         self._cleanup_trace(trace)
 
+    class _NoneStep(object):
+        """Representation of a non-existent step towards non-existent node."""
+
+        __slots__ = ()
+
+        __bool__ = __nonzero__ = lambda self: False
+        is_set = has_subtrie = property(lambda self: False)
+        get = lambda self, default=None: default
+
+        key = value = property(lambda self: None)
+
+        def __getitem__(self, index):
+            """Makes object appear like a (key, value) tuple.
+
+            This is deprecated and for backwards-compatibility only.  Prefer
+            using ``key`` and ``value`` properties directly.
+
+            Args:
+                index: Element index to return.  Zero for key, one for value.
+
+            Returns:
+                ``self.key`` if index is ``0``, ``self.value`` if it's ``1``.
+                Otherwise raises an IndexError exception.
+
+            Raises:
+                IndexError: if index is not 0 or 1.
+                KeyErro: if index is 1 but node has no value assigned.
+            """
+            if index == 0:
+                return self.key
+            elif index == 1:
+                return self.value
+            else:
+                raise IndexError('index out of range')
+
+    class _Step(_NoneStep):
+        """Representation of a single step on a path towards particular node."""
+
+        __slots__ = ('_trie', '_path', '_pos', '_node', '__key')
+
+        def __init__(self, trie, path, pos, node):
+            self._trie = trie
+            self._path = path
+            self._pos = pos
+            self._node = node
+
+        __bool__ = __nonzero__ = lambda self: True
+
+        @property
+        def is_set(self):
+            """Returns whether the node has value assigned to it."""
+            return self._node.value is not _SENTINEL
+
+        @property
+        def has_subtrie(self):
+            """Returns whether the node has any children."""
+            return bool(self._node.children)
+
+        def get(self, default=None):
+            """Returns node's value or the default if value is not assigned."""
+            v = self._node.value
+            return default if v is _SENTINEL else v
+
+        def set(self, value):
+            """Assigns value to the node."""
+            self._node.value = value
+
+        def setdefault(self, value):
+            """Assigns value to the node if one is not set then returns it."""
+            if self._node.value is _SENTINEL:
+                self._node.value = value
+            return self._node.value
+
+        @property
+        def key(self):
+            """Returns key of the node."""
+            if not hasattr(self, '_Step__key'):
+                self.__key = self._trie._key_from_path(self._path[:self._pos])
+            return self.__key
+
+        @property
+        def value(self):
+            """Returns node's value or raises KeyError."""
+            v = self._node.value
+            if v is _SENTINEL:
+                raise ShortKeyError(self.key)
+            return v
+
+    _NONE_STEP = _NoneStep()
+
+    def walk_towards(self, key):
+        """Yields nodes on the path to given node.
+
+        Args:
+            key: Key of the node to look for.
+
+        Yields:
+            :class:`pygtrie.Trie._Step` objects which can be used to extract or
+            set node's value as well as get node's key.
+
+            When representing nodes with assigned values, the objects can be
+            treated as ``(k, value)`` pairs denoting keys with associated values
+            encountered on the way towards the specified key.  This is
+            deprecated, prefer using ``key`` and ``value`` properties or ``get``
+            method of the object.
+
+        Raises:
+            KeyError: If node with given key does not exist.  It's all right if
+                they value is not assigned to the node provided it has a child
+                node.  Because the method is a generator, the exception is
+                raised only once a missing node is encountered.
+        """
+        node = self._root
+        path = self.__path_from_key(key)
+        pos = 0
+        while True:
+            yield self._Step(self, path, pos, node)
+            if pos == len(path):
+                break
+            node = node.children.get(path[pos])
+            if not node:
+                raise KeyError(key)
+            pos += 1
+
     def prefixes(self, key):
         """Walks towards the node specified by key and yields all found items.
 
@@ -896,30 +1013,27 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Yields:
-            ``(k, value)`` pairs denoting keys with associated values
-            encountered on the way towards the specified key.
+            :class:`pygtrie.Trie._Step` objects which can be used to extract or
+            set node's value as well as get node's key.
+
+            The objects can be treated as ``(k, value)`` pairs denoting keys
+            with associated values encountered on the way towards the specified
+            key.  This is deprecated, prefer using ``key`` and ``value``
+            properties of the object.
         """
-        node = self._root
-        path = self.__path_from_key(key)
-        pos = 0
-        while True:
-            if node.value is not _SENTINEL:
-                yield self._key_from_path(path[:pos]), node.value
-            if pos == len(path):
-                break
-            node = node.children.get(path[pos])
-            if not node:
-                break
-            pos += 1
+        try:
+            for step in self.walk_towards(key):
+                if step.is_set:
+                    yield step
+        except KeyError:
+            pass
 
     def shortest_prefix(self, key):
         """Finds the shortest prefix of a key with a value.
 
-        This is equivalent to taking the first object yielded by
-        :func:`Trie.prefixes` with a default of `(None, None)` if said method
-        yields no items.  As an added bonus, the pair in that case will be
-        a falsy value (as opposed to regular two-element tuple of ``None``
-        values).
+        This is roughly equivalent to taking the first object yielded by
+        :func:`Trie.prefixes` with additional handling for situations when no
+        prefixes are found.
 
         Example:
 
@@ -938,20 +1052,24 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Returns:
-            ``(k, value)`` where ``k`` is the shortest prefix of ``key`` (it may
-            equal ``key``) and ``value`` is a value associated with that key.
-            If no node is found, ``(None, None)`` is returned.
+            :class:`pygtrie.Trie._Step` object (which can be used to extract or
+            set node's value as well as get node's key), or
+            a :class:`pygtrie.Trie._NoneStep` object (which is falsy value
+            simulating a _Step with ``None`` key and value) if no prefix is
+            found.
+
+            The object can be treated as ``(key, value)`` pair denoting key with
+            associated value of the prefix.  This is deprecated, prefer using
+            ``key`` and ``value`` properties of the object.
         """
-        return next(self.prefixes(key), _NONE_PAIR)
+        return next(self.prefixes(key), self._NONE_STEP)
 
     def longest_prefix(self, key):
         """Finds the longest prefix of a key with a value.
 
-        This is equivalent to taking the last object yielded by
-        :func:`Trie.prefixes` with a default of `(None, None)` if said method
-        yields no items.  As an added bonus, the pair in that case will be
-        a falsy value (as opposed to regular two-element tuple of ``None``
-        values).
+        This is roughly equivalent to taking the last object yielded by
+        :func:`Trie.prefixes` with additional handling for situations when no
+        prefixes are found.
 
         Example:
 
@@ -970,11 +1088,17 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Returns:
-            ``(k, value)`` where ``k`` is the longest prefix of ``key`` (it may
-            equal ``key``) and ``value`` is a value associated with that key.
-            If no node is found, ``(None, None)`` is returned.
+            :class:`pygtrie.Trie._Step` object (which can be used to extract or
+            set node's value as well as get node's key), or
+            a :class:`pygtrie.Trie._NoneStep` object (which is falsy value
+            simulating a _Step with ``None`` key and value) if no prefix is
+            found.
+
+            The object can be treated as ``(key, value)`` pair denoting key with
+            associated value of the prefix.  This is deprecated, prefer using
+            ``key`` and ``value`` properties of the object.
         """
-        ret = _NONE_PAIR
+        ret = self._NONE_STEP
         for ret in self.prefixes(key):
             pass
         return ret

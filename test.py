@@ -286,7 +286,9 @@ class TrieTestCase(unittest.TestCase):
         none_pair = (None, None)
 
         def assert_pair(expected, got):
-            self.assertEqual(expected, got)
+            self.assertEqual(expected, tuple(got))
+            self.assertEqual(expected[0], got.key)
+            self.assertEqual(expected[1], got.value)
             if expected[0]:
                 self.assertTrue(got)
             else:
@@ -316,15 +318,74 @@ class TrieTestCase(unittest.TestCase):
         short_pair = (self.key_from_key(self._SHORT_KEY), 42)
         long_pair = (self.key_from_key(self._LONG_KEY), 42)
 
-        self.assertEqual([], list(t.prefixes(self._SHORT_PREFIXES[-1])))
-        self.assertEqual([], list(t.prefixes(self._OTHER_KEY)))
-        self.assertEqual([short_pair], list(t.prefixes(self._SHORT_KEY)))
-        self.assertEqual([short_pair],
-                         list(t.prefixes(self._LONG_PREFIXES[-1])))
-        self.assertEqual([short_pair, long_pair],
-                         list(t.prefixes(self._LONG_KEY)))
-        self.assertEqual([short_pair, long_pair],
-                         list(t.prefixes(self._VERY_LONG_KEY)))
+        def assert_prefixes(expected, *args):
+            got = list(t.prefixes(*args))
+            self.assertEqual(expected, [tuple(step) for step in got])
+            for e, g in zip(expected, got):
+                self.assertTrue(g)
+                self.assertEqual(e[0], g.key)
+                self.assertEqual(e[1], g.value)
+
+        assert_prefixes([], self._SHORT_PREFIXES[-1])
+        assert_prefixes([], self._OTHER_KEY)
+        assert_prefixes([short_pair], self._SHORT_KEY)
+        assert_prefixes([short_pair], self._LONG_PREFIXES[-1])
+        assert_prefixes([short_pair, long_pair], self._LONG_KEY)
+        assert_prefixes([short_pair, long_pair], self._VERY_LONG_KEY)
+
+    def _do_test_walk_towards(self, trie_factory):
+        """walk_towards method test."""
+        d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
+        t = trie_factory(self._TRIE_CLS, d)
+
+        short_pair = (self.key_from_key(self._SHORT_KEY), 42)
+        long_pair = (self.key_from_key(self._LONG_KEY), 42)
+        none_pair = (None, None)
+
+        def assert_step(step):
+            self.assertTrue(step)
+            self.assertEqual(step[0], step.key)
+
+            is_set = step.key in (self.key_from_key(self._SHORT_KEY),
+                                  self.key_from_key(self._LONG_KEY))
+            self.assertEqual(is_set, step.is_set)
+            self.assertEqual(step.key != self.key_from_key(self._LONG_KEY),
+                             step.has_subtrie)
+
+            if is_set:
+                self.assertEqual(42, step.value)
+                self.assertEqual(42, step[1])
+                self.assertEqual(42, step.get('42'))
+                self.assertEqual(42, step.setdefault('42'))
+                self.assertEqual(42, step.value)
+                step.set('42')
+                self.assertEqual('42', step.value)
+                step.set(42)
+            else:
+                self.assertRaises(lambda: step.value)
+                self.assertRaises(lambda: step[1])
+                self.assertEqual('42', step.get('42'))
+                self.assertEqual(42, step.setdefault(42))
+                self.assertEqual(42, step.value)
+                step._node.value = pygtrie._SENTINEL
+
+        def assert_steps(key, raises=False):
+            try:
+                n = 0
+                for step in t.walk_towards(key):
+                    assert_step(step)
+                    n += 1
+                self.assertFalse(raises)
+                self.assertEqual(len(self.path_from_key(key)) + 1, n)
+            except KeyError:
+                self.assertTrue(raises)
+
+        assert_steps(self._SHORT_PREFIXES[-1])
+        assert_steps(self._OTHER_KEY[-1], raises=True)
+        assert_steps(self._SHORT_KEY)
+        assert_steps(self._LONG_PREFIXES[-1])
+        assert_steps(self._LONG_KEY)
+        assert_steps(self._VERY_LONG_KEY, raises=True)
 
     def _do_test_pickle(self, trie_factory):
         """https://github.com/google/pygtrie/issues/7"""
