@@ -178,11 +178,8 @@ class _Node(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def __bool__(self):
-        return bool(self.value is not _SENTINEL or self.children)
-
-    __nonzero__ = __bool__
-
+    __bool__ = __nonzero__ = lambda self: bool(
+        self.value is not _SENTINEL or self.children)
     __hash__ = None
 
     def __getstate__(self):
@@ -535,8 +532,7 @@ class Trie(_collections.MutableMapping):
         """
         return sum(1 for _ in self.itervalues())
 
-    def __nonzero__(self):
-        return bool(self._root)
+    __bool__ = __nonzero__ = lambda self: bool(self._root)
 
     HAS_VALUE = 1
     HAS_SUBTRIE = 2
