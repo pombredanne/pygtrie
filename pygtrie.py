@@ -43,9 +43,8 @@ __copyright__ = ('Copyright 2014-2017 Google LLC',
 
 import collections as _collections
 
-# Python 2.x and 3.x compatibility stuff
+# Python 2.x and 3.x compatibility stuff; pylint: disable=invalid-name
 if hasattr(dict, 'iteritems'):
-    # pylint: disable=invalid-name
     _iteritems = lambda d: d.iteritems()
     _iterkeys = lambda d: d.iterkeys()
     def _sorted_iteritems(d):
@@ -54,14 +53,15 @@ if hasattr(dict, 'iteritems'):
         items.sort()
         return iter(items)
 else:
-    _sorted_iteritems = lambda d: sorted(d.items())  # pylint: disable=invalid-name
-    _iteritems = lambda d: iter(d.items())  # pylint: disable=invalid-name
-    _iterkeys = lambda d: iter(d.keys())  # pylint: disable=invalid-name
+    _sorted_iteritems = lambda d: sorted(d.items())
+    _iteritems = lambda d: iter(d.items())
+    _iterkeys = lambda d: iter(d.keys())
 
 try:
     _basestring = basestring
 except NameError:
     _basestring = str
+# pylint: enable=invalid-name
 
 
 class ShortKeyError(KeyError):
@@ -179,8 +179,10 @@ class _Node(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    __bool__ = __nonzero__ = lambda self: bool(
-        self.value is not _SENTINEL or self.children)
+    def __bool__(self):
+        return bool(self.value is not _SENTINEL or self.children)
+
+    __nonzero__ = __bool__
     __hash__ = None
 
     def __getstate__(self):
@@ -533,7 +535,11 @@ class Trie(_collections.MutableMapping):
         """
         return sum(1 for _ in self.itervalues())
 
-    __bool__ = __nonzero__ = lambda self: bool(self._root)
+    def __bool__(self):
+        return self._root.__bool__()
+
+    __nonzero__ = __bool__
+    __hash__ = None
 
     HAS_VALUE = 1
     HAS_SUBTRIE = 2
@@ -945,6 +951,7 @@ class Trie(_collections.MutableMapping):
         def key(self):
             """Returns key of the node."""
             if not hasattr(self, '_Step__key'):
+                # pylint: disable=protected-access
                 self.__key = self._trie._key_from_path(self._path[:self._pos])
             return self.__key
 
@@ -1114,8 +1121,7 @@ class Trie(_collections.MutableMapping):
         if self:
             return  'Trie((%s,))' % ', '.join(
                 '(%r, %r)' % item for item in self.iteritems())
-        else:
-            return 'Trie()'
+        return 'Trie()'
 
     def __path_from_key(self, key):
         """Converts a user visible key object to internal path representation.
@@ -1489,40 +1495,40 @@ class PrefixSet(_collections.MutableSet):
         """
         return len(self._trie)
 
-    def add(self, key):
-        """Adds given key to the set.
+    def add(self, value):
+        """Adds given value to the set.
 
-        If the set already contains prefix of the key being added, this
-        operation has no effect.  If the key being added is a prefix of some
-        existing keys in the set, those keys are deleted and replaced by
-        a single entry for the key being added.
+        If the set already contains prefix of the value being added, this
+        operation has no effect.  If the value being added is a prefix of some
+        existing values in the set, those values are deleted and replaced by
+        a single entry for the value being added.
 
-        For example, if the set contains key "foo" adding a key "foobar" does
-        not change anything.  On the other hand, if the set contains keys
-        "foobar" and "foobaz", adding a key "foo" will replace those two keys
-        with a single key "foo".
+        For example, if the set contains value "foo" adding a value "foobar"
+        does not change anything.  On the other hand, if the set contains values
+        "foobar" and "foobaz", adding a value "foo" will replace those two
+        values with a single value "foo".
 
-        This makes a difference when iterating over the keys or counting number
-        of keys.  Counter intuitively, adding of a key can *decrease* size of
-        the set.
+        This makes a difference when iterating over the values or counting
+        number of values.  Counter intuitively, adding of a value can *decrease*
+        size of the set.
 
         Args:
-            key: Key to add.
+            value: Value to add.
         """
-        if key not in self:
-            self._trie[key:] = True
+        if value not in self:
+            self._trie[value:] = True
 
-    def discard(self, key):
+    def discard(self, value):
         """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')
 
-    def remove(self, key):
+    def remove(self, value):
         """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')
 
     def pop(self):
         """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')

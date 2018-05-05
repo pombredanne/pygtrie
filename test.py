@@ -310,7 +310,7 @@ class TrieTestCase(unittest.TestCase):
         assert_pair(none_pair, t.longest_prefix(self._SHORT_PREFIXES[-1]))
         assert_pair(none_pair, t.longest_prefix(self._OTHER_KEY))
 
-    def _do_test_find_one_prefix(self, trie_factory):
+    def _do_test_list_prefixes(self, trie_factory):
         """Key prefixes listing method test."""
         d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
         t = trie_factory(self._TRIE_CLS, d)
@@ -338,10 +338,6 @@ class TrieTestCase(unittest.TestCase):
         d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
         t = trie_factory(self._TRIE_CLS, d)
 
-        short_pair = (self.key_from_key(self._SHORT_KEY), 42)
-        long_pair = (self.key_from_key(self._LONG_KEY), 42)
-        none_pair = (None, None)
-
         def assert_step(step):
             self.assertTrue(step)
             self.assertEqual(step[0], step.key)
@@ -362,11 +358,12 @@ class TrieTestCase(unittest.TestCase):
                 self.assertEqual('42', step.value)
                 step.set(42)
             else:
-                self.assertRaises(lambda: step.value)
-                self.assertRaises(lambda: step[1])
+                self.assertRaises(KeyError, lambda: step.value)
+                self.assertRaises(KeyError, lambda: step[1])
                 self.assertEqual('42', step.get('42'))
                 self.assertEqual(42, step.setdefault(42))
                 self.assertEqual(42, step.value)
+                # pylint: disable=protected-access
                 step._node.value = pygtrie._SENTINEL
 
         def assert_steps(key, raises=False):
@@ -517,7 +514,9 @@ class SortTest(unittest.TestCase):
 
     def test_enable_sorting(self):
         keys = sorted(chr(x) for x in range(32, 128) if x != ord('/'))
-        t = pygtrie.StringTrie.fromkeys(keys)
+        # In Python 3 keys are returned in insertion order so we reverse the
+        # insertion here.
+        t = pygtrie.StringTrie.fromkeys(reversed(keys))
 
         # Unless dict's hash function is weird, trie's keys should not be
         # returned in order.
@@ -666,15 +665,14 @@ class RecursionTest(unittest.TestCase):
         self.create_trie().copy()
 
     # This code is taken from traverse docstring
-    _Node = collections.namedtuple('Node', 'label neighbours')
-
     @classmethod
-    def _undirected_graph_from_trie(cls, t):
+    def _undirected_graph_from_trie(cls, trie):
         """Converts trie into a graph and returns its nodes."""
+        Node = collections.namedtuple('Node', 'label neighbours')  # pylint: disable=invalid-name
 
         class Builder(object):
             def __init__(self, path_conv, path, children, _=None):
-                self.node = cls._Node(path_conv(path), [])
+                self.node = Node(path_conv(path), [])
                 self.children = children
                 self.parent = None
 
@@ -687,7 +685,7 @@ class RecursionTest(unittest.TestCase):
                     self.node.neighbours.append(self.parent)
                 return self.node
 
-        nodes = [t.traverse(Builder)]
+        nodes = [trie.traverse(Builder)]
         i = 0
         while i < len(nodes):
             nodes[i] = nodes[i].build(nodes)

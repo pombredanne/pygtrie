@@ -5,7 +5,7 @@
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
 __copyright__ = 'Copyright 2014 Google LLC'
 
-# pylint: disable=invalid-name,superfluous-parens,redefined-variable-type
+# pylint: disable=invalid-name,superfluous-parens
 
 import os
 import stat
