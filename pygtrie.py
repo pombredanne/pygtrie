@@ -21,7 +21,8 @@ Features
 
 - A full mutable mapping implementation.
 
-- Supports iterating over as well as deleting a subtrie.
+- Supports iterating over as well as deleting of a branch of a trie
+  (i.e. subtrie)
 
 - Supports prefix checking as well as shortest and longest prefix
   look-up.
@@ -32,7 +33,7 @@ Features
 
 - Can store any value including None.
 
-For some simple examples see ``example.py`` file.
+For a few simple examples see ``example.py`` file.
 """
 
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
@@ -275,15 +276,15 @@ class _Node(object):
 class Trie(_collections.MutableMapping):
     """A trie implementation with dict interface plus some extensions.
 
-    Keys used with the :class:`pygtrie.Trie` must be iterable, yielding hashable
-    objects.  In other words, for a given key, ``dict.fromkeys(key)`` must be
-    valid.
+    Keys used with the :class:`pygtrie.Trie` class must be iterable which each
+    component being a hashable objects.  In other words, for a given key,
+    ``dict.fromkeys(key)`` must be valid expression.
 
-    In particular, strings work fine as trie keys, however when getting keys
-    back from iterkeys() method for example, instead of strings, tuples of
-    characters are produced.  For that reason, :class:`pygtrie.CharTrie` or
-    :class:`pygtrie.StringTrie` may be preferred when using
-    :class:`pygtrie.Trie` with string keys.
+    In particular, strings work well as trie keys, however when getting them
+    back (for example via :func:`Trie.iterkeys` method), instead of strings,
+    tuples of characters are produced.  For that reason,
+    :class:`pygtrie.CharTrie` or :class:`pygtrie.StringTrie` classes may be
+    preferred when using string keys.
     """
 
     def __init__(self, *args, **kwargs):
@@ -429,7 +430,7 @@ class Trie(_collections.MutableMapping):
         unspecified by default.  In other words, in the above example, the
         ``('qux', 'Qux')`` pair might have been at the end of the list. At an
         expense of efficiency, this can be changed via
-        :func:`Trie.enable_sorting`.
+        :func:`Trie.enable_sorting` method.
 
         With ``prefix`` argument, only items with specified prefix are generated
         (i.e. only given subtrie is traversed) as demonstrated by::
@@ -561,7 +562,7 @@ class Trie(_collections.MutableMapping):
             True
 
         There are two higher level methods built on top of this one which give
-        easier interface for the information. :func:`Trie.has_key` and returns
+        easier interface for the information. :func:`Trie.has_key` returns
         whether node has a value associated with it and :func:`Trie.has_subtrie`
         checks whether node is a prefix.  Continuing previous example::
 
@@ -850,7 +851,7 @@ class Trie(_collections.MutableMapping):
 
         Raises:
             ShortKeyError: If the key has no value associated with it but is
-                a prefix of some key with a value.  This is not thrown is
+                a prefix of some key with a value.  This is not thrown if
                 key_or_slice is a slice -- in such cases, the whole subtrie is
                 removed.  Note that :class:`ShortKeyError` is subclass of
                 :class:`KeyError`.
@@ -1172,10 +1173,10 @@ class Trie(_collections.MutableMapping):
         consequences:
 
         * To traverse into node's children, the generator must be iterated over.
-          This can by accomplished by a simple "children = list(children)"
+          This can by accomplished by a simple ``children = list(children)``
           statement.
         * Ignoring the argument allows node_factory to stop the traversal from
-          going into the children of the node.  In other words, whole subtrie
+          going into the children of the node.  In other words, whole subtries
           can be removed from traversal if node_factory chooses so.
         * If children is stored as is (i.e. as a generator) when it is iterated
           over later on it will see state of the trie as it is during the
@@ -1258,10 +1259,12 @@ class Trie(_collections.MutableMapping):
         prone to rising a RuntimeError exception when Python's maximum recursion
         depth is reached.  This can be addressed by not iterating over children
         inside of the node_factory.  For example, the below code converts a trie
-        into an undirected graph using adjacency list representation:
+        into an undirected graph using adjacency list representation::
 
             def undirected_graph_from_trie(t):
                 '''Converts trie into a graph and returns its nodes.'''
+
+                Node = collections.namedtuple('Node', 'path neighbours')
 
                 class Builder(object):
                     def __init__(self, path_conv, path, children, _=None):
@@ -1306,8 +1309,8 @@ class CharTrie(Trie):
 
     The only difference between :class:`pygtrie.CharTrie` and
     :class:`pygtrie.Trie` is that when :class:`pygtrie.CharTrie` returns keys
-    back to the client (for instance in keys() method is called), those keys are
-    returned as strings.
+    back to the client (for instance when :func:`Trie.keys` method is called),
+    those keys are returned as strings.
 
     Canonical example where this class can be used is a dictionary of words in
     a natural language.  For example::
@@ -1336,7 +1339,8 @@ class StringTrie(Trie):
     """:class:`pygtrie.Trie` variant accepting strings with a separator as keys.
 
     The trie accepts strings as keys which are split into components using
-    a separator specified during initialisation ("/" by default).
+    a separator specified during initialisation (forward slash,i.e. ``/``, by
+    default).
 
     Canonical example where this class can be used is when keys are paths.  For
     example, it could map from a path to a request handler::
@@ -1509,13 +1513,16 @@ class PrefixSet(_collections.MutableSet):
             self._trie[key:] = True
 
     def discard(self, key):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
             'Removing keys from PrefixSet is not implemented.')
 
     def remove(self, key):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
             'Removing keys from PrefixSet is not implemented.')
 
     def pop(self):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
             'Removing keys from PrefixSet is not implemented.')

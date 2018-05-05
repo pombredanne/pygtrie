@@ -3,8 +3,8 @@ Version History
 
 2.2: 2017/06/03
 
-- Fixes to setup.py breaking on Windows which prevents installation
-  among other things.
+- Fixes to ``setup.py`` breaking on Windows which prevents
+  installation among other things.
 
 2.1: 2017/03/23
 
@@ -12,7 +12,7 @@ Version History
 
 - Value returend by ``shortest_prefix`` and ``longest_prefix`` evaluates
   to false if no prefix was found.  This is in addition to it being
-  a pair of Nones of course.
+  a pair of ``None``s of course.
 
 2.0: 2016/07/06
 
