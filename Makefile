@@ -1,4 +1,4 @@
-all: test lint
+all: test lint docs
 
 test: test2 test3
 
@@ -11,4 +11,7 @@ test3: test.py pygtrie.py
 lint: .pylintrc pygtrie.py test.py example.py
 	pylint --rcfile $^
 
-.PHONY: all test test2 test3 lint
+docs:
+	sphinx-build . html
+
+.PHONY: all test test2 test3 lint docs
