@@ -8,8 +8,10 @@ __copyright__ = ('Copyright 2014-2017 Google LLC',
 
 
 import array
+import base64
 import collections
 import pickle
+import sys
 import unittest
 
 import pygtrie
@@ -451,6 +453,31 @@ class TrieTestCase(unittest.TestCase):
                 (tries[i-1], _TRIE_FACTORIES[i-1][0],
                  tries[i], _TRIE_FACTORIES[i][0]))
 
+    _PICKLED_PROTO_0 = (
+        'Y2NvcHlfcmVnCl9yZWNvbnN0cnVjdG9yCnAwCihjcHlndHJpZQpUcmllCnAxCmNfX2J1aW'
+        'x0aW5fXwpvYmplY3QKcDIKTnRwMwpScDQKKGRwNQpWX3Jvb3QKcDYKZzAKKGNweWd0cmll'
+        'Cl9Ob2RlCnA3CmcyCk50cDgKUnA5CihscDEwCkwzTAphVmYKcDExCmFWbwpwMTIKYWcxMg'
+        'phTDQyTAphTC0zTAphTDNMCmFWYgpwMTMKYVZhCnAxNAphVnIKcDE1CmFMNDJMCmFMLTFM'
+        'CmFMMUwKYVZ6CnAxNgphTDQyTAphYnNWX3NvcnRlZApwMTcKSTAwCnNiLg==')
+
+    _PICKLED_PROTO_3 = (
+        'gANjcHlndHJpZQpUcmllCnEAKYFxAX1xAihYBQAAAF9yb290cQNjcHlndHJpZQpfTm9kZQ'
+        'pxBCmBcQVdcQYoSwNYAQAAAGZxB1gBAAAAb3EIaAhLKkr9////SwNYAQAAAGJxCVgBAAAA'
+        'YXEKWAEAAABycQtLKkr/////SwFYAQAAAHpxDEsqZWJYBwAAAF9zb3J0ZWRxDYl1Yi4=')
+
+    def assertUnpickling(self, want, pickled):
+        got = pickle.loads(base64.b64decode(pickled))
+        self.assertEqual(want, got)
+
+    def test_pickling_proto0(self):
+        want = self._TRIE_CLS.fromkeys(('foo', 'bar', 'baz'), 42)
+        self.assertUnpickling(want, self._PICKLED_PROTO_0)
+
+    @unittest.skipIf(sys.version_info[0] < 3, "Protocol 3 requires Python 3+")
+    def test_pickling_proto3(self):
+        want = self._TRIE_CLS.fromkeys(('foo', 'bar', 'baz'), 42)
+        self.assertUnpickling(want, self._PICKLED_PROTO_3)
+
 
 def _construct_trie_test_cases():
 
@@ -473,9 +500,47 @@ _construct_trie_test_cases()
 class CharTrieTestCase(TrieTestCase):
     _TRIE_CLS = pygtrie.CharTrie
 
+    _PICKLED_PROTO_0 = (
+        'Y2NvcHlfcmVnCl9yZWNvbnN0cnVjdG9yCnAwCihjcHlndHJpZQpDaGFyVHJpZQpwMQpjX1'
+        '9idWlsdGluX18Kb2JqZWN0CnAyCk50cDMKUnA0CihkcDUKVl9yb290CnA2CmcwCihjcHln'
+        'dHJpZQpfTm9kZQpwNwpnMgpOdHA4ClJwOQoobHAxMApMM0wKYVZmCnAxMQphVm8KcDEyCm'
+        'FnMTIKYUw0MkwKYUwtM0wKYUwzTAphVmIKcDEzCmFWYQpwMTQKYVZyCnAxNQphTDQyTAph'
+        'TC0xTAphTDFMCmFWegpwMTYKYUw0MkwKYWJzVl9zb3J0ZWQKcDE3CkkwMApzYi4=')
+
+    _PICKLED_PROTO_3 = (
+        'gANjcHlndHJpZQpDaGFyVHJpZQpxACmBcQF9cQIoWAUAAABfcm9vdHEDY3B5Z3RyaWUKX0'
+        '5vZGUKcQQpgXEFXXEGKEsDWAEAAABmcQdYAQAAAG9xCGgISypK/f///0sDWAEAAABicQlY'
+        'AQAAAGFxClgBAAAAcnELSypK/////0sBWAEAAAB6cQxLKmViWAcAAABfc29ydGVkcQ2JdW'
+        'Iu')
+
     @classmethod
     def key_from_path(cls, path):
         return ''.join(path)
+
+    def test_prefix_set_pickling_proto0(self):
+        pickled = (
+            'Y2NvcHlfcmVnCl9yZWNvbnN0cnVjdG9yCnAwCihjcHlndHJpZQpQcmVmaXhTZXQKcD'
+            'EKY19fYnVpbHRpbl9fCm9iamVjdApwMgpOdHAzClJwNAooZHA1ClZfdHJpZQpwNgpn'
+            'MAooY3B5Z3RyaWUKQ2hhclRyaWUKcDcKZzIKTnRwOApScDkKKGRwMTAKVl9yb290Cn'
+            'AxMQpnMAooY3B5Z3RyaWUKX05vZGUKcDEyCmcyCk50cDEzClJwMTQKKGxwMTUKTDNM'
+            'CmFWZgpwMTYKYVZvCnAxNwphZzE3CmFJMDEKYUwtM0wKYUwzTAphVmIKcDE4CmFWYQ'
+            'pwMTkKYVZyCnAyMAphSTAxCmFMLTFMCmFMMUwKYVZ6CnAyMQphSTAxCmFic1Zfc29y'
+            'dGVkCnAyMgpJMDAKc2JzYi4=')
+        want = pygtrie.PrefixSet(('foo', 'bar', 'baz'),
+                                 factory=pygtrie.CharTrie)
+        self.assertUnpickling(want, pickled)
+
+    @unittest.skipIf(sys.version_info[0] < 3, "Protocol 3 requires Python 3+")
+    def test_prefix_set_pickling_proto3(self):
+        pickled = (
+            'gANjcHlndHJpZQpQcmVmaXhTZXQKcQApgXEBfXECWAUAAABfdHJpZXEDY3B5Z3RyaW'
+            'UKQ2hhclRyaWUKcQQpgXEFfXEGKFgFAAAAX3Jvb3RxB2NweWd0cmllCl9Ob2RlCnEI'
+            'KYFxCV1xCihLA1gBAAAAZnELWAEAAABvcQxoDIhK/f///0sDWAEAAABicQ1YAQAAAG'
+            'FxDlgBAAAAcnEPiEr/////SwFYAQAAAHpxEIhlYlgHAAAAX3NvcnRlZHERiXVic2Iu'
+        )
+        want = pygtrie.PrefixSet(('foo', 'bar', 'baz'),
+                                 factory=pygtrie.CharTrie)
+        self.assertUnpickling(want, pickled)
 
 
 class StringTrieTestCase(TrieTestCase):
@@ -487,6 +552,19 @@ class StringTrieTestCase(TrieTestCase):
     _OTHER_KEY = '/hom'
     _SHORT_PREFIXES = ('', '/home')
     _LONG_PREFIXES = ('/home/foo/bar',)
+
+    _PICKLED_PROTO_0 = (
+        'Y2NvcHlfcmVnCl9yZWNvbnN0cnVjdG9yCnAwCihjcHlndHJpZQpTdHJpbmdUcmllCnAxCm'
+        'NfX2J1aWx0aW5fXwpvYmplY3QKcDIKTnRwMwpScDQKKGRwNQpWX3NlcGFyYXRvcgpwNgpW'
+        'LwpwNwpzVl9yb290CnA4CmcwCihjcHlndHJpZQpfTm9kZQpwOQpnMgpOdHAxMApScDExCi'
+        'hscDEyCkwxTAphVmZvbwpwMTMKYUw0MkwKYUwtMUwKYUwxTAphVmJhcgpwMTQKYUw0MkwK'
+        'YUwtMUwKYUwxTAphVmJhegpwMTUKYUw0MkwKYWJzVl9zb3J0ZWQKcDE2CkkwMApzYi4=')
+
+    _PICKLED_PROTO_3 = (
+        'gANjcHlndHJpZQpTdHJpbmdUcmllCnEAKYFxAX1xAihYCgAAAF9zZXBhcmF0b3JxA1gBAA'
+        'AAL3EEWAUAAABfcm9vdHEFY3B5Z3RyaWUKX05vZGUKcQYpgXEHXXEIKEsBWAMAAABmb29x'
+        'CUsqSv////9LAVgDAAAAYmFycQpLKkr/////SwFYAwAAAGJhenELSyplYlgHAAAAX3Nvcn'
+        'RlZHEMiXViLg==')
 
     @classmethod
     def path_from_key(cls, key):
