@@ -12,7 +12,7 @@ Version History
 
 - Value returend by ``shortest_prefix`` and ``longest_prefix`` evaluates
   to false if no prefix was found.  This is in addition to it being
-  a pair of ``None``s of course.
+  a pair of Nones of course.
 
 2.0: 2016/07/06
 
