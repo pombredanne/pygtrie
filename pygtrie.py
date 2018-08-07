@@ -1436,7 +1436,7 @@ class PrefixSet(_abc.MutableSet):
 
     def copy(self):
         """Returns a copy of the prefix set."""
-        return self.__class__(self._trie)
+        return self.__class__(self._trie, factory=self._trie.__class__)
 
     def clear(self):
         """Removes all keys from the set."""

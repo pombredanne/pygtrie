@@ -418,12 +418,20 @@ class TrieTestCase(unittest.TestCase):
             self.assertEqual([], list(ps.iter(self._OTHER_KEY)))
 
         ps.add(self._SHORT_KEY)
-        self.assertEqual(1, len(ps))
-        self.assertEqual([short_key], list(ps.iter()))
-        self.assertEqual([short_key], list(iter(ps)))
-        self.assertEqual([short_key], list(ps.iter(self._SHORT_KEY)))
-        self.assertEqual([long_key], list(ps.iter(self._LONG_KEY)))
-        self.assertEqual([], list(ps.iter(self._OTHER_KEY)))
+
+        def check_state(p):
+            self.assertTrue(ps)
+            self.assertEqual(1, len(p))
+            self.assertEqual([short_key], list(p.iter()))
+            self.assertEqual([short_key], list(iter(p)))
+            self.assertEqual([short_key], list(p.iter(self._SHORT_KEY)))
+            self.assertEqual([long_key], list(p.iter(self._LONG_KEY)))
+            self.assertEqual([], list(p.iter(self._OTHER_KEY)))
+
+        check_state(ps)
+        ps_copy = ps.copy()
+        check_state(ps_copy)
+        self.assertEqual(ps, ps_copy)
 
         ps.add(self._OTHER_KEY)
         self.assertEqual(2, len(ps))
@@ -431,6 +439,14 @@ class TrieTestCase(unittest.TestCase):
         self.assertEqual([short_key], list(ps.iter(self._SHORT_KEY)))
         self.assertEqual([long_key], list(ps.iter(self._LONG_KEY)))
         self.assertEqual([other_key], list(ps.iter(self._OTHER_KEY)))
+
+        check_state(ps_copy)
+        self.assertNotEqual(ps, ps_copy)
+
+        ps.clear()
+        self.assertFalse(ps)
+        self.assertEqual(0, len(ps))
+        self.assertEqual([], list(ps))
 
     def test_equality(self):
         """Tests equality comparison."""
