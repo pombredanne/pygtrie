@@ -9,7 +9,8 @@ test3: test.py pygtrie.py
 	python3 $<
 
 lint: .pylintrc pygtrie.py test.py example.py
-	pylint --rcfile $^
+	lint=$$(which pylint3 2>/dev/null) || lint=$$(which pylint) && \
+	"$$lint" --rcfile $^
 
 docs:
 	sphinx-build . html
