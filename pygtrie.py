@@ -42,6 +42,10 @@ __copyright__ = ('Copyright 2014-2017 Google LLC',
 
 
 import collections as _collections
+try:
+    import collections.abc as _abc
+except ImportError:
+    _abc = _collections
 
 # Python 2.x and 3.x compatibility stuff; pylint: disable=invalid-name
 if hasattr(dict, 'iteritems'):
@@ -275,7 +279,7 @@ class _Node(object):
                 stack[-1].value = next(state)
 
 
-class Trie(_collections.MutableMapping):
+class Trie(_abc.MutableMapping):
     """A trie implementation with dict interface plus some extensions.
 
     Keys used with the :class:`pygtrie.Trie` class must be iterable which each
@@ -1403,7 +1407,7 @@ class StringTrie(Trie):
         return self._separator.join(path)
 
 
-class PrefixSet(_collections.MutableSet):
+class PrefixSet(_abc.MutableSet):
     """A set of prefixes.
 
     :class:`pygtrie.PrefixSet` works similar to a normal set except it is said
