@@ -36,6 +36,8 @@ Features
 For a few simple examples see ``example.py`` file.
 """
 
+from __future__ import absolute_import, division, print_function
+
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
 __copyright__ = ('Copyright 2014-2017 Google LLC',
                  'Copyright 2018 Michal Nazarewicz <mina86@mina86.com>')
