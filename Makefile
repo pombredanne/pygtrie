@@ -15,7 +15,7 @@ lint: .pylintrc pygtrie.py test.py example.py
 coverage: test.py pygtrie.py
 	cov=$$(which python3-coverage 2>/dev/null) || \
 	cov=$$(which python-coverage) && \
-	"$$cov" run test.py && "$$cov" report -m
+	"$$cov" run $< && "$$cov" report -m
 
 docs:
 	sphinx-build . html
