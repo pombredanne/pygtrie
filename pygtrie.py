@@ -46,11 +46,11 @@ __copyright__ = ('Copyright 2014-2017 Google LLC',
 import collections as _collections
 try:
     import collections.abc as _abc
-except ImportError:
+except ImportError:  # Python 2 compatibility
     _abc = _collections
 
-# Python 2.x and 3.x compatibility stuff; pylint: disable=invalid-name
-if hasattr(dict, 'iteritems'):
+# pylint: disable=invalid-name
+if hasattr(dict, 'iteritems'):  # Python 2 compatibility
     _iteritems = lambda d: d.iteritems()
     _iterkeys = lambda d: d.iterkeys()
     def _sorted_iteritems(d):
@@ -65,7 +65,7 @@ else:
 
 try:
     _basestring = basestring
-except NameError:
+except NameError:  # Python 2 compatibility
     _basestring = str
 # pylint: enable=invalid-name
 
@@ -171,16 +171,14 @@ class _Node(object):
             while True:
                 try:
                     key, a = next(stack[-1][0])
-                    b = stack[-1][1].get(key)
-                    if b is None:
-                        return False
+                    b = stack[-1][1][key]
                     break
                 except StopIteration:
                     stack.pop()
                 except IndexError:
                     return True
-
-        return self.value == other.value and self.children == other.children
+                except KeyError:
+                    return False
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -241,29 +239,27 @@ class _Node(object):
             stack.append(_iteritems(node.children))
 
             while True:
-                try:
-                    step, node = next(stack[-1])
-                except StopIteration:
-                    if last_cmd < 0:
-                        state[-1] -= 1
-                    else:
-                        last_cmd = -1
-                        state.append(-1)
-                    stack.pop()
-                    continue
-                except IndexError:
-                    if last_cmd < 0:
-                        state.pop()
+                step, node = next(stack[-1], (None, None))
+                if node is not None:
+                    break
+
+                if last_cmd < 0:
+                    state[-1] -= 1
+                else:
+                    last_cmd = -1
+                    state.append(-1)
+                stack.pop()
+                if not stack:
+                    state.pop()  # Final -n command is not necessary
                     return state
 
-                if last_cmd > 0:
-                    last_cmd += 1
-                    state[-last_cmd] += 1
-                else:
-                    last_cmd = 1
-                    state.append(1)
-                state.append(step)
-                break
+            if last_cmd > 0:
+                last_cmd += 1
+                state[-last_cmd] += 1
+            else:
+                last_cmd = 1
+                state.append(1)
+            state.append(step)
 
     def __setstate__(self, state):
         """Unpickles node.  See :func:`_Node.__getstate__`."""
@@ -761,30 +757,26 @@ class Trie(_abc.MutableMapping):
             del parent.children[step]
             step, node = parent_step, parent
 
-    def _pop_from_node(self, node, trace, default=_SENTINEL):
+    def _pop_from_node(self, node, trace):
         """Removes a value from given node.
 
         Args:
             node: Node to get value of.
             trace: Trace to that node as returned by :func:`Trie._get_node`.
-            default: A default value to return if node has no value set.
 
         Returns:
-            Value of the node or ``default``.
+            Value of the node.
 
         Raises:
             ShortKeyError: If the node has no value associated with it and
                 ``default`` has not been given.
         """
-        if node.value is not _SENTINEL:
-            value = node.value
-            node.value = _SENTINEL
-            self._cleanup_trace(trace)
-            return value
-        elif default is _SENTINEL:
+        value = node.value
+        if value is _SENTINEL:
             raise ShortKeyError()
-        else:
-            return default
+        node.value = _SENTINEL
+        self._cleanup_trace(trace)
+        return value
 
     def pop(self, key, default=_SENTINEL):
         """Deletes value associated with given key and returns it.

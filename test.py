@@ -70,6 +70,9 @@ class TrieTestCase(unittest.TestCase):
 
     # A key to set
     _SHORT_KEY = 'foo'
+    # Another key which has all but the last component equal to the ones in
+    # _SHORT_KEY.
+    _SHORT_KEY2 = 'foO'
     # Another key to set such that _SHORT_KEY is it's prefix
     _LONG_KEY = _SHORT_KEY + 'bar'
     # A key that is not set but _LONG_KEY is it's prefix
@@ -93,6 +96,15 @@ class TrieTestCase(unittest.TestCase):
         return tuple(path)
 
     # End of stuff that needs to be overwritten by subclasses
+
+    def __init__(self, *args, **kw):
+        super(TrieTestCase, self).__init__(*args, **kw)
+        # Python 2 compatibility.  Noisy code to confuse pylint so it does not
+        # issue deprecated-method warning. pylint: disable=invalid-name
+        for new, old in (('assertRegex', 'assertRegexpMatches'),
+                         ('assertRaisesRegex', 'assertRaisesRegexp')):
+            if not hasattr(self, new):
+                setattr(self, new, getattr(self, old))
 
     def key_from_key(self, key):
         """Turns a key into a form that the Trie will return e.g. in keys()."""
@@ -163,6 +175,9 @@ class TrieTestCase(unittest.TestCase):
             self.assertNodeState(t, key)
         self.assertNodeState(t, self._SHORT_KEY, value=value)
 
+        self.assertRegex(str(t), r'Trie\([^:]*: [^:]*\)')
+        self.assertRegex(repr(t), r'Trie\(\(\(.*, .*\),\)\)')
+
     def assertEmptyTrie(self, t):
         """Asserts a trie is empty."""
         self.assertEqual(0, len(t), '%r should be empty: %d' % (t, len(t)))
@@ -200,6 +215,31 @@ class TrieTestCase(unittest.TestCase):
         self.assertShortTrie(t, 24)
 
         self.assertEqual((self.key_from_key(self._SHORT_KEY), 24), t.popitem())
+        self.assertEmptyTrie(t)
+
+        t[self._LONG_KEY] = '42'
+        self.assertRaisesRegex(pygtrie.ShortKeyError, str(self._SHORT_KEY),
+                               t.__delitem__, self._SHORT_KEY)
+
+    def _do_test_invalid_arguments(self, trie_factory):
+        """Test various methods check for invalid arguments."""
+        d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
+        t = trie_factory(self._TRIE_CLS, d)
+
+        self.assertRaisesRegex(
+            ValueError, 'update.. takes at most one positional argument,',
+            t.update, (self._LONG_KEY, 42), (self._VERY_LONG_KEY, 42))
+
+        self.assertRaisesRegex(TypeError, r'slice\(.*, None\)',
+                               lambda: t[self._SHORT_KEY:self._LONG_KEY])
+        self.assertRaisesRegex(TypeError, r"slice\(.*, 'foo'\)",
+                               lambda: t[self._SHORT_KEY:self._LONG_KEY:'foo'])
+    def _do_test_clear(self, trie_factory):
+        """Test clear method."""
+        d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
+        t = trie_factory(self._TRIE_CLS, d)
+        self.assertFullTrie(t)
+        t.clear()
         self.assertEmptyTrie(t)
 
     def _do_test_iterator(self, trie_factory):
@@ -295,6 +335,9 @@ class TrieTestCase(unittest.TestCase):
                 self.assertTrue(got)
             else:
                 self.assertFalse(got)
+                self.assertFalse(got.is_set)
+                self.assertFalse(got.has_subtrie)
+                self.assertIsNone(got.get())
 
         assert_pair(short_pair, t.shortest_prefix(self._VERY_LONG_KEY))
         assert_pair(short_pair, t.shortest_prefix(self._LONG_KEY))
@@ -450,24 +493,15 @@ class TrieTestCase(unittest.TestCase):
 
     def test_equality(self):
         """Tests equality comparison."""
-        d = dict.fromkeys((self._SHORT_KEY, self._LONG_KEY), 42)
-        # pylint: disable=redefined-outer-name
-        tries = [factory(self._TRIE_CLS, d) for _, factory in _TRIE_FACTORIES]
+        a = self._TRIE_CLS({self._SHORT_KEY: 42})
+        b = self._TRIE_CLS({self._SHORT_KEY: 42})
+        c = self._TRIE_CLS({self._SHORT_KEY: '42'})
+        d = self._TRIE_CLS({self._SHORT_KEY2: 42})
 
-        for i in range(1, len(tries)):
-            self.assertEqual(
-                tries[i-1], tries[i],
-                '%r (factory: %s) should equal %r (factory: %s)' %
-                (tries[i-1], _TRIE_FACTORIES[i-1][0],
-                 tries[i], _TRIE_FACTORIES[i][0]))
-
-        for i in range(1, len(tries)):
-            tries[i-1][self._OTHER_KEY] = 42
-            self.assertNotEqual(
-                tries[i-1], tries[i],
-                '%r (factory: %s) should not be equal %r (factory: %s)' %
-                (tries[i-1], _TRIE_FACTORIES[i-1][0],
-                 tries[i], _TRIE_FACTORIES[i][0]))
+        self.assertEqual(a, a)
+        self.assertEqual(a, b)
+        self.assertNotEqual(a, c)
+        self.assertNotEqual(a, d)
 
     _PICKLED_PROTO_0 = (
         'Y2NvcHlfcmVnCl9yZWNvbnN0cnVjdG9yCnAwCihjcHlndHJpZQpUcmllCnAxCmNfX2J1aW'
@@ -563,6 +597,7 @@ class StringTrieTestCase(TrieTestCase):
     _TRIE_CLS = pygtrie.StringTrie
 
     _SHORT_KEY = '/home/foo'
+    _SHORT_KEY2 = '/home/FOO'
     _LONG_KEY = _SHORT_KEY + '/bar/baz'
     _VERY_LONG_KEY = _LONG_KEY + '/qux'
     _OTHER_KEY = '/hom'
