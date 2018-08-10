@@ -1373,7 +1373,7 @@ class StringTrie(Trie):
         handler = handlers.longest_prefix(request_path)
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # pylint: disable=differing-param-doc
         """Initialises the trie.
 
         Except for a ``separator`` named argument, all other arguments are
@@ -1386,6 +1386,10 @@ class StringTrie(Trie):
                 the trie.  "/" is used if this argument is not specified.  This
                 named argument is not specified on the function's prototype
                 because of Python's limitations.
+
+        Raises:
+            TypeError: If ``separator`` is not a string.
+            ValueError: If ``separator`` is empty.
         """
         separator = kwargs.pop('separator', '/')
         if not isinstance(separator, _basestring):

@@ -19,7 +19,10 @@ persistent=yes
 
 # List of plugins (as comma separated values of python modules names) to load,
 # usually to register additional checkers.
-load-plugins=
+load-plugins=pylint.extensions.check_elif,
+             pylint.extensions.docparams,
+             pylint.extensions.emptystring,
+             pylint.extensions.redefined_variable_type
 
 
 [MESSAGES CONTROL]
@@ -38,7 +41,17 @@ load-plugins=
 # --enable=similarities". If you want to run only the classes checker, but have
 # no Warning level messages displayed, use"--disable=all --enable=classes
 # --disable=W"
-disable=locally-disabled,star-args,too-many-public-methods,too-many-lines,too-few-public-methods,attribute-defined-outside-init,too-many-ancestors,no-else-return
+disable=attribute-defined-outside-init,
+        locally-disabled,
+        locally-enabled,
+        missing-return-type-doc,
+        missing-type-doc,
+        missing-yield-type-doc,
+        star-args,
+        too-many-public-methods,
+        too-many-lines,
+        too-few-public-methods,
+        too-many-ancestors,no-else-return
 
 
 [REPORTS]
@@ -56,16 +69,7 @@ files-output=no
 # Tells whether to display a full report or only the messages
 reports=no
 
-# Python expression which should return a note less than 10 (10 is the highest
-# note). You have access to the variables errors warning, statement which
-# respectively contain the number of errors / warnings messages and the total
-# number of statements analyzed. This is used by the global evaluation report
-# (RP0004).
-evaluation=10.0 - ((float(5 * error + warning + refactor + convention) / statement) * 10)
-
-# Add a comment according to your evaluation note. This is used by the global
-# evaluation report (RP0004).
-comment=no
+score=no
 
 # Template used to display messages. This is a python new-style format string
 # used to format the message information. See doc for all details
