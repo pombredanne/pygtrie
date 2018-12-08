@@ -427,8 +427,8 @@ class Trie(_abc.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t['qux'] = 'Qux'
-            >>> t.items()
-            [('qux', 'Qux'), ('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
+            >>> sorted(t.items())
+            [('foo', 'Foo'), ('foo/bar/baz', 'Baz'), ('qux', 'Qux')]
 
         Items are generated in topological order but the order of siblings is
         unspecified by default.  In other words, in the above example, the
@@ -445,8 +445,8 @@ class Trie(_abc.MutableMapping):
         With ``shallow`` argument, if a node has value associated with it, it's
         children are not traversed even if they exist which can be seen in::
 
-            >>> t.items(shallow=True)
-            [('qux', 'Qux'), ('foo', 'Foo')]
+            >>> sorted(t.items(shallow=True))
+            [('foo', 'Foo'), ('qux', 'Qux')]
 
         Args:
             prefix: Prefix to limit iteration to.
@@ -575,13 +575,13 @@ class Trie(_abc.MutableMapping):
         checks whether node is a prefix.  Continuing previous example::
 
             >>> t.has_key('qux'), t.has_subtrie('qux')
-            False, False
+            (False, False)
             >>> t.has_key('foo/bar/baz'), t.has_subtrie('foo/bar/baz')
-            True, False
+            (True, False)
             >>> t.has_key('foo'), t.has_subtrie('foo')
-            False, True
+            (False, True)
             >>> t.has_key('foo/bar'), t.has_subtrie('foo/bar')
-            True, True
+            (True, True)
 
         Args:
             key: A key to look for.
@@ -653,12 +653,12 @@ class Trie(_abc.MutableMapping):
             >>> t['qux'] = 'Qux'
             >>> t['foo/bar']
             'Bar'
-            >>> list(t['foo':])
-            ['Baz', 'Bar']
-            >>> t['foo']
+            >>> sorted(t['foo':])
+            ['Bar', 'Baz']
+            >>> t['foo']  # doctest: +IGNORE_EXCEPTION_DETAIL
             Traceback (most recent call last):
                 ...
-            pygtrie.ShortKeyError: 'foo'
+            ShortKeyError: 'foo'
 
         Args:
             key_or_slice: A key or a slice to look for.
@@ -715,8 +715,8 @@ class Trie(_abc.MutableMapping):
             >>> t = pygtrie.StringTrie()
             >>> t['foo/bar'] = 'Bar'
             >>> t['foo/baz'] = 'Baz'
-            >>> t.keys()
-            ['foo/baz', 'foo/bar']
+            >>> sorted(t.keys())
+            ['foo/bar', 'foo/baz']
             >>> t['foo':] = 'Foo'
             >>> t.keys()
             ['foo']
@@ -907,6 +907,9 @@ class Trie(_abc.MutableMapping):
             else:
                 raise IndexError('index out of range')
 
+        def __repr__(self):
+            return '(None Step)'
+
     class _Step(_NoneStep):
         """Representation of a single step on a path towards particular node."""
 
@@ -944,6 +947,9 @@ class Trie(_abc.MutableMapping):
             if self._node.value is _SENTINEL:
                 self._node.value = value
             return self._node.value
+
+        def __repr__(self):
+            return '(%r: %r)' % (self.key, self.value)
 
         @property
         def key(self):
@@ -1007,7 +1013,7 @@ class Trie(_abc.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> list(t.prefixes('foo/bar/baz/qux'))
-            [('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
+            [('foo': 'Foo'), ('foo/bar/baz': 'Baz')]
             >>> list(t.prefixes('does/not/exist'))
             []
 
@@ -1044,9 +1050,13 @@ class Trie(_abc.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.shortest_prefix('foo/bar/baz/qux')
-            ('foo', 'Foo')
+            ('foo': 'Foo')
+            >>> t.shortest_prefix('foo/bar/baz/qux')[0]
+            'foo'
+            >>> t.shortest_prefix('foo/bar/baz/qux')[1]
+            'Foo'
             >>> t.shortest_prefix('does/not/exist')
-            (None, None)
+            (None Step)
             >>> bool(t.shortest_prefix('does/not/exist'))
             False
 
@@ -1080,9 +1090,13 @@ class Trie(_abc.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.longest_prefix('foo/bar/baz/qux')
-            ('foo/bar/baz', 'Baz')
+            ('foo/bar/baz': 'Baz')
+            >>> t.longest_prefix('foo/bar/baz/qux')[0]
+            'foo/bar/baz'
+            >>> t.longest_prefix('foo/bar/baz/qux')[1]
+            'Baz'
             >>> t.longest_prefix('does/not/exist')
-            (None, None)
+            (None Step)
             >>> bool(t.longest_prefix('does/not/exist'))
             False
 
