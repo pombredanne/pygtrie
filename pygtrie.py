@@ -1051,9 +1051,9 @@ class Trie(_abc.MutableMapping):
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.shortest_prefix('foo/bar/baz/qux')
             ('foo': 'Foo')
-            >>> t.shortest_prefix('foo/bar/baz/qux')[0]
+            >>> t.shortest_prefix('foo/bar/baz/qux').key
             'foo'
-            >>> t.shortest_prefix('foo/bar/baz/qux')[1]
+            >>> t.shortest_prefix('foo/bar/baz/qux').value
             'Foo'
             >>> t.shortest_prefix('does/not/exist')
             (None Step)
@@ -1091,9 +1091,9 @@ class Trie(_abc.MutableMapping):
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.longest_prefix('foo/bar/baz/qux')
             ('foo/bar/baz': 'Baz')
-            >>> t.longest_prefix('foo/bar/baz/qux')[0]
+            >>> t.longest_prefix('foo/bar/baz/qux').key
             'foo/bar/baz'
-            >>> t.longest_prefix('foo/bar/baz/qux')[1]
+            >>> t.longest_prefix('foo/bar/baz/qux').value
             'Baz'
             >>> t.longest_prefix('does/not/exist')
             (None Step)
