@@ -430,17 +430,16 @@ class Trie(_abc.MutableMapping):
             >>> sorted(t.items())
             [('foo', 'Foo'), ('foo/bar/baz', 'Baz'), ('qux', 'Qux')]
 
-        Items are generated in topological order but the order of siblings is
-        unspecified by default.  In other words, in the above example, the
-        ``('qux', 'Qux')`` pair might have been at the end of the list. At an
-        expense of efficiency, this can be changed via
-        :func:`Trie.enable_sorting` method.
+        Items are generated in topological order (i.e. parents before child
+        nodes) but the order of siblings is unspecified.  At an expense of
+        efficiency, :func:`Trie.enable_sorting` method can turn deterministic
+        ordering of siblings.
 
         With ``prefix`` argument, only items with specified prefix are generated
         (i.e. only given subtrie is traversed) as demonstrated by::
 
-            >>> t.items(prefix='foo/bar')
-            [('foo/bar/baz', 'Baz')]
+            >>> t.items(prefix='foo')
+            [('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
 
         With ``shallow`` argument, if a node has value associated with it, it's
         children are not traversed even if they exist which can be seen in::
