@@ -1,10 +1,25 @@
 Version History
 ---------------
 
+2.3: 2018/08/10
+
+- New ``walk_towards`` method allows walking a path towards given
+  a node with given key accessing each step of the path.  Compared to
+  prefixes method, steps for nodes without assigned values are
+
+- Fix to ``PrefixSet.copy`` not preserving type of backing trie.
+
+- ``StringTrie`` now checks and explicitly rejects empty separators.
+  Previously empty separator would be accepted but lead to confusing
+  errors later on.  [Thanks to Waren Long].
+
+- Various documentation improvements, Python 2/3 compatibility and
+  test coverage (python-coverage reports 100% \o/).
+
 2.2: 2017/06/03
 
-- Fixes to setup.py breaking on Windows which prevents installation
-  among other things.
+- Fixes to ``setup.py`` breaking on Windows which prevents
+  installation among other things.
 
 2.1: 2017/03/23
 

@@ -1,0 +1,12 @@
+# Configuration for python-coverage.  Run ‘make coverage’ to check coverage.
+
+[run]
+omit = test.py
+branch = on
+
+[report]
+exclude_lines =
+    raise NotImplementedError
+    .* # Python 2 compatibility
+show_missing = true
+fail_under = 95

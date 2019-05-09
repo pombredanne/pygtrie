@@ -21,7 +21,8 @@ Features
 
 - A full mutable mapping implementation.
 
-- Supports iterating over as well as deleting a subtrie.
+- Supports iterating over as well as deleting of a branch of a trie
+  (i.e. subtrie)
 
 - Supports prefix checking as well as shortest and longest prefix
   look-up.
@@ -32,18 +33,24 @@ Features
 
 - Can store any value including None.
 
-For some simple examples see ``example.py`` file.
+For a few simple examples see ``example.py`` file.
 """
 
+from __future__ import absolute_import, division, print_function
+
 __author__ = 'Michal Nazarewicz <mina86@mina86.com>'
-__copyright__ = 'Copyright 2014 Google Inc.'
+__copyright__ = ('Copyright 2014-2017 Google LLC',
+                 'Copyright 2018 Michal Nazarewicz <mina86@mina86.com>')
 
 
 import collections as _collections
+try:
+    import collections.abc as _abc
+except ImportError:  # Python 2 compatibility
+    _abc = _collections
 
-# Python 2.x and 3.x compatibility stuff
-if hasattr(dict, 'iteritems'):
-    # pylint: disable=invalid-name
+# pylint: disable=invalid-name
+if hasattr(dict, 'iteritems'):  # Python 2 compatibility
     _iteritems = lambda d: d.iteritems()
     _iterkeys = lambda d: d.iterkeys()
     def _sorted_iteritems(d):
@@ -52,14 +59,15 @@ if hasattr(dict, 'iteritems'):
         items.sort()
         return iter(items)
 else:
-    _sorted_iteritems = lambda d: sorted(d.items())  # pylint: disable=invalid-name
-    _iteritems = lambda d: iter(d.items())  # pylint: disable=invalid-name
-    _iterkeys = lambda d: iter(d.keys())  # pylint: disable=invalid-name
+    _sorted_iteritems = lambda d: sorted(d.items())
+    _iteritems = lambda d: iter(d.items())
+    _iterkeys = lambda d: iter(d.keys())
 
 try:
     _basestring = basestring
-except NameError:
+except NameError:  # Python 2 compatibility
     _basestring = str
+# pylint: enable=invalid-name
 
 
 class ShortKeyError(KeyError):
@@ -123,8 +131,8 @@ class _Node(object):
         """Traverses the node and returns another type of node from factory.
 
         Args:
-            node_factory: Callable function to construct new nodes.
-            path_conv: Callable function to convert node path to a key.
+            node_factory: Callable to construct return value.
+            path_conv: Callable to convert node path to a key.
             path: Current path for this node.
             iteritems: A function taking dictionary as argument and returning
                 iterator over its items.  Something other than dict.iteritems
@@ -133,7 +141,7 @@ class _Node(object):
         Returns:
             An object constructed by calling node_factory(path_conv, path,
             children, value=...), where children are constructed by node_factory
-            from the children of this node. There doesn't need to be 1:1
+            from the children of this node.  There doesn't need to be 1:1
             correspondence between original nodes in the trie and constructed
             nodes (see make_test_node_and_compress in test.py).
         """
@@ -163,16 +171,14 @@ class _Node(object):
             while True:
                 try:
                     key, a = next(stack[-1][0])
-                    b = stack[-1][1].get(key)
-                    if b is None:
-                        return False
+                    b = stack[-1][1][key]
                     break
                 except StopIteration:
                     stack.pop()
                 except IndexError:
                     return True
-
-        return self.value == other.value and self.children == other.children
+                except KeyError:
+                    return False
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -181,7 +187,6 @@ class _Node(object):
         return bool(self.value is not _SENTINEL or self.children)
 
     __nonzero__ = __bool__
-
     __hash__ = None
 
     def __getstate__(self):
@@ -234,29 +239,27 @@ class _Node(object):
             stack.append(_iteritems(node.children))
 
             while True:
-                try:
-                    step, node = next(stack[-1])
-                except StopIteration:
-                    if last_cmd < 0:
-                        state[-1] -= 1
-                    else:
-                        last_cmd = -1
-                        state.append(-1)
-                    stack.pop()
-                    continue
-                except IndexError:
-                    if last_cmd < 0:
-                        state.pop()
+                step, node = next(stack[-1], (None, None))
+                if node is not None:
+                    break
+
+                if last_cmd < 0:
+                    state[-1] -= 1
+                else:
+                    last_cmd = -1
+                    state.append(-1)
+                stack.pop()
+                if not stack:
+                    state.pop()  # Final -n command is not necessary
                     return state
 
-                if last_cmd > 0:
-                    last_cmd += 1
-                    state[-last_cmd] += 1
-                else:
-                    last_cmd = 1
-                    state.append(1)
-                state.append(step)
-                break
+            if last_cmd > 0:
+                last_cmd += 1
+                state[-last_cmd] += 1
+            else:
+                last_cmd = 1
+                state.append(1)
+            state.append(step)
 
     def __setstate__(self, state):
         """Unpickles node.  See :func:`_Node.__getstate__`."""
@@ -274,25 +277,18 @@ class _Node(object):
                 stack[-1].value = next(state)
 
 
-_NONE_PAIR = type('NonePair', (tuple,), {
-    '__nonzero__': lambda _: False,
-    '__bool__': lambda _: False,
-    '__slots__': (),
-})((None, None))
-
-
-class Trie(_collections.MutableMapping):
+class Trie(_abc.MutableMapping):
     """A trie implementation with dict interface plus some extensions.
 
-    Keys used with the :class:`pygtrie.Trie` must be iterable, yielding hashable
-    objects.  In other words, for a given key, ``dict.fromkeys(key)`` must be
-    valid.
+    Keys used with the :class:`pygtrie.Trie` class must be iterable which each
+    component being a hashable objects.  In other words, for a given key,
+    ``dict.fromkeys(key)`` must be valid expression.
 
-    In particular, strings work fine as trie keys, however when getting keys
-    back from iterkeys() method for example, instead of strings, tuples of
-    characters are produced.  For that reason, :class:`pygtrie.CharTrie` or
-    :class:`pygtrie.StringTrie` may be preferred when using
-    :class:`pygtrie.Trie` with string keys.
+    In particular, strings work well as trie keys, however when getting them
+    back (for example via :func:`Trie.iterkeys` method), instead of strings,
+    tuples of characters are produced.  For that reason,
+    :class:`pygtrie.CharTrie` or :class:`pygtrie.StringTrie` classes may be
+    preferred when using string keys.
     """
 
     def __init__(self, *args, **kwargs):
@@ -431,26 +427,25 @@ class Trie(_collections.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t['qux'] = 'Qux'
-            >>> t.items()
-            [('qux', 'Qux'), ('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
+            >>> sorted(t.items())
+            [('foo', 'Foo'), ('foo/bar/baz', 'Baz'), ('qux', 'Qux')]
 
-        Items are generated in topological order but the order of siblings is
-        unspecified by default.  In other words, in the above example, the
-        ``('qux', 'Qux')`` pair might have been at the end of the list. At an
-        expense of efficiency, this can be changed via
-        :func:`Trie.enable_sorting`.
+        Items are generated in topological order (i.e. parents before child
+        nodes) but the order of siblings is unspecified.  At an expense of
+        efficiency, :func:`Trie.enable_sorting` method can turn deterministic
+        ordering of siblings.
 
         With ``prefix`` argument, only items with specified prefix are generated
         (i.e. only given subtrie is traversed) as demonstrated by::
 
-            >>> t.items(prefix='foo/bar')
-            [('foo/bar/baz', 'Baz')]
+            >>> t.items(prefix='foo')
+            [('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
 
         With ``shallow`` argument, if a node has value associated with it, it's
         children are not traversed even if they exist which can be seen in::
 
-            >>> t.items(shallow=True)
-            [('qux', 'Qux'), ('foo', 'Foo')]
+            >>> sorted(t.items(shallow=True))
+            [('foo', 'Foo'), ('qux', 'Qux')]
 
         Args:
             prefix: Prefix to limit iteration to.
@@ -534,8 +529,6 @@ class Trie(_collections.MutableMapping):
         """
         return list(self.itervalues(prefix=prefix, shallow=shallow))
 
-    # pylint: enable=arguments-differ
-
     def __len__(self):
         """Returns number of values in a trie.
 
@@ -543,8 +536,11 @@ class Trie(_collections.MutableMapping):
         """
         return sum(1 for _ in self.itervalues())
 
-    def __nonzero__(self):
-        return bool(self._root)
+    def __bool__(self):
+        return self._root.__bool__()
+
+    __nonzero__ = __bool__
+    __hash__ = None
 
     HAS_VALUE = 1
     HAS_SUBTRIE = 2
@@ -573,18 +569,18 @@ class Trie(_collections.MutableMapping):
             True
 
         There are two higher level methods built on top of this one which give
-        easier interface for the information. :func:`Trie.has_key` and returns
+        easier interface for the information. :func:`Trie.has_key` returns
         whether node has a value associated with it and :func:`Trie.has_subtrie`
         checks whether node is a prefix.  Continuing previous example::
 
             >>> t.has_key('qux'), t.has_subtrie('qux')
-            False, False
+            (False, False)
             >>> t.has_key('foo/bar/baz'), t.has_subtrie('foo/bar/baz')
-            True, False
+            (True, False)
             >>> t.has_key('foo'), t.has_subtrie('foo')
-            False, True
+            (False, True)
             >>> t.has_key('foo/bar'), t.has_subtrie('foo/bar')
-            True, True
+            (True, True)
 
         Args:
             key: A key to look for.
@@ -598,7 +594,7 @@ class Trie(_collections.MutableMapping):
         except KeyError:
             return 0
         return ((self.HAS_VALUE * int(node.value is not _SENTINEL)) |
-                        (self.HAS_SUBTRIE * int(bool(node.children))))
+                (self.HAS_SUBTRIE * int(bool(node.children))))
 
     def has_key(self, key):
         """Indicates whether given key has value associated with it.
@@ -656,12 +652,12 @@ class Trie(_collections.MutableMapping):
             >>> t['qux'] = 'Qux'
             >>> t['foo/bar']
             'Bar'
-            >>> list(t['foo':])
-            ['Baz', 'Bar']
-            >>> t['foo']
+            >>> sorted(t['foo':])
+            ['Bar', 'Baz']
+            >>> t['foo']  # doctest: +IGNORE_EXCEPTION_DETAIL
             Traceback (most recent call last):
                 ...
-            pygtrie.ShortKeyError: 'foo'
+            ShortKeyError: 'foo'
 
         Args:
             key_or_slice: A key or a slice to look for.
@@ -718,8 +714,8 @@ class Trie(_collections.MutableMapping):
             >>> t = pygtrie.StringTrie()
             >>> t['foo/bar'] = 'Bar'
             >>> t['foo/baz'] = 'Baz'
-            >>> t.keys()
-            ['foo/baz', 'foo/bar']
+            >>> sorted(t.keys())
+            ['foo/bar', 'foo/baz']
             >>> t['foo':] = 'Foo'
             >>> t.keys()
             ['foo']
@@ -760,30 +756,26 @@ class Trie(_collections.MutableMapping):
             del parent.children[step]
             step, node = parent_step, parent
 
-    def _pop_from_node(self, node, trace, default=_SENTINEL):
+    def _pop_from_node(self, node, trace):
         """Removes a value from given node.
 
         Args:
             node: Node to get value of.
             trace: Trace to that node as returned by :func:`Trie._get_node`.
-            default: A default value to return if node has no value set.
 
         Returns:
-            Value of the node or ``default``.
+            Value of the node.
 
         Raises:
             ShortKeyError: If the node has no value associated with it and
                 ``default`` has not been given.
         """
-        if node.value is not _SENTINEL:
-            value = node.value
-            node.value = _SENTINEL
-            self._cleanup_trace(trace)
-            return value
-        elif default is _SENTINEL:
+        value = node.value
+        if value is _SENTINEL:
             raise ShortKeyError()
-        else:
-            return default
+        node.value = _SENTINEL
+        self._cleanup_trace(trace)
+        return value
 
     def pop(self, key, default=_SENTINEL):
         """Deletes value associated with given key and returns it.
@@ -834,7 +826,7 @@ class Trie(_collections.MutableMapping):
             node = node.children[step]
             trace.append((step, node))
         return (self._key_from_path((step for step, _ in trace[1:])),
-                        self._pop_from_node(node, trace))
+                self._pop_from_node(node, trace))
 
     def __delitem__(self, key_or_slice):
         """Deletes value associated with given key or raises KeyError.
@@ -862,7 +854,7 @@ class Trie(_collections.MutableMapping):
 
         Raises:
             ShortKeyError: If the key has no value associated with it but is
-                a prefix of some key with a value.  This is not thrown is
+                a prefix of some key with a value.  This is not thrown if
                 key_or_slice is a slice -- in such cases, the whole subtrie is
                 removed.  Note that :class:`ShortKeyError` is subclass of
                 :class:`KeyError`.
@@ -879,6 +871,137 @@ class Trie(_collections.MutableMapping):
         node.value = _SENTINEL
         self._cleanup_trace(trace)
 
+    class _NoneStep(object):
+        """Representation of a non-existent step towards non-existent node."""
+
+        __slots__ = ()
+
+        __bool__ = __nonzero__ = lambda self: False
+        is_set = has_subtrie = property(lambda self: False)
+        get = lambda self, default=None: default
+
+        key = value = property(lambda self: None)
+
+        def __getitem__(self, index):
+            """Makes object appear like a (key, value) tuple.
+
+            This is deprecated and for backwards-compatibility only.  Prefer
+            using ``key`` and ``value`` properties directly.
+
+            Args:
+                index: Element index to return.  Zero for key, one for value.
+
+            Returns:
+                ``self.key`` if index is ``0``, ``self.value`` if it's ``1``.
+                Otherwise raises an IndexError exception.
+
+            Raises:
+                IndexError: if index is not 0 or 1.
+                KeyErro: if index is 1 but node has no value assigned.
+            """
+            if index == 0:
+                return self.key
+            elif index == 1:
+                return self.value
+            else:
+                raise IndexError('index out of range')
+
+        def __repr__(self):
+            return '(None Step)'
+
+    class _Step(_NoneStep):
+        """Representation of a single step on a path towards particular node."""
+
+        __slots__ = ('_trie', '_path', '_pos', '_node', '__key')
+
+        def __init__(self, trie, path, pos, node):
+            self._trie = trie
+            self._path = path
+            self._pos = pos
+            self._node = node
+
+        __bool__ = __nonzero__ = lambda self: True
+
+        @property
+        def is_set(self):
+            """Returns whether the node has value assigned to it."""
+            return self._node.value is not _SENTINEL
+
+        @property
+        def has_subtrie(self):
+            """Returns whether the node has any children."""
+            return bool(self._node.children)
+
+        def get(self, default=None):
+            """Returns node's value or the default if value is not assigned."""
+            v = self._node.value
+            return default if v is _SENTINEL else v
+
+        def set(self, value):
+            """Assigns value to the node."""
+            self._node.value = value
+
+        def setdefault(self, value):
+            """Assigns value to the node if one is not set then returns it."""
+            if self._node.value is _SENTINEL:
+                self._node.value = value
+            return self._node.value
+
+        def __repr__(self):
+            return '(%r: %r)' % (self.key, self.value)
+
+        @property
+        def key(self):
+            """Returns key of the node."""
+            if not hasattr(self, '_Step__key'):
+                # pylint: disable=protected-access
+                self.__key = self._trie._key_from_path(self._path[:self._pos])
+            return self.__key
+
+        @property
+        def value(self):
+            """Returns node's value or raises KeyError."""
+            v = self._node.value
+            if v is _SENTINEL:
+                raise ShortKeyError(self.key)
+            return v
+
+    _NONE_STEP = _NoneStep()
+
+    def walk_towards(self, key):
+        """Yields nodes on the path to given node.
+
+        Args:
+            key: Key of the node to look for.
+
+        Yields:
+            :class:`pygtrie.Trie._Step` objects which can be used to extract or
+            set node's value as well as get node's key.
+
+            When representing nodes with assigned values, the objects can be
+            treated as ``(k, value)`` pairs denoting keys with associated values
+            encountered on the way towards the specified key.  This is
+            deprecated, prefer using ``key`` and ``value`` properties or ``get``
+            method of the object.
+
+        Raises:
+            KeyError: If node with given key does not exist.  It's all right if
+                they value is not assigned to the node provided it has a child
+                node.  Because the method is a generator, the exception is
+                raised only once a missing node is encountered.
+        """
+        node = self._root
+        path = self.__path_from_key(key)
+        pos = 0
+        while True:
+            yield self._Step(self, path, pos, node)
+            if pos == len(path):
+                break
+            node = node.children.get(path[pos])
+            if not node:
+                raise KeyError(key)
+            pos += 1
+
     def prefixes(self, key):
         """Walks towards the node specified by key and yields all found items.
 
@@ -889,7 +1012,7 @@ class Trie(_collections.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> list(t.prefixes('foo/bar/baz/qux'))
-            [('foo', 'Foo'), ('foo/bar/baz', 'Baz')]
+            [('foo': 'Foo'), ('foo/bar/baz': 'Baz')]
             >>> list(t.prefixes('does/not/exist'))
             []
 
@@ -897,30 +1020,27 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Yields:
-            ``(k, value)`` pairs denoting keys with associated values
-            encountered on the way towards the specified key.
+            :class:`pygtrie.Trie._Step` objects which can be used to extract or
+            set node's value as well as get node's key.
+
+            The objects can be treated as ``(k, value)`` pairs denoting keys
+            with associated values encountered on the way towards the specified
+            key.  This is deprecated, prefer using ``key`` and ``value``
+            properties of the object.
         """
-        node = self._root
-        path = self.__path_from_key(key)
-        pos = 0
-        while True:
-            if node.value is not _SENTINEL:
-                yield self._key_from_path(path[:pos]), node.value
-            if pos == len(path):
-                break
-            node = node.children.get(path[pos])
-            if not node:
-                break
-            pos += 1
+        try:
+            for step in self.walk_towards(key):
+                if step.is_set:
+                    yield step
+        except KeyError:
+            pass
 
     def shortest_prefix(self, key):
         """Finds the shortest prefix of a key with a value.
 
-        This is equivalent to taking the first object yielded by
-        :func:`Trie.prefixes` with a default of `(None, None)` if said method
-        yields no items.  As an added bonus, the pair in that case will be
-        a falsy value (as opposed to regular two-element tuple of ``None``
-        values).
+        This is roughly equivalent to taking the first object yielded by
+        :func:`Trie.prefixes` with additional handling for situations when no
+        prefixes are found.
 
         Example:
 
@@ -929,9 +1049,13 @@ class Trie(_collections.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.shortest_prefix('foo/bar/baz/qux')
-            ('foo', 'Foo')
+            ('foo': 'Foo')
+            >>> t.shortest_prefix('foo/bar/baz/qux').key
+            'foo'
+            >>> t.shortest_prefix('foo/bar/baz/qux').value
+            'Foo'
             >>> t.shortest_prefix('does/not/exist')
-            (None, None)
+            (None Step)
             >>> bool(t.shortest_prefix('does/not/exist'))
             False
 
@@ -939,20 +1063,24 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Returns:
-            ``(k, value)`` where ``k`` is the shortest prefix of ``key`` (it may
-            equal ``key``) and ``value`` is a value associated with that key.
-            If no node is found, ``(None, None)`` is returned.
+            :class:`pygtrie.Trie._Step` object (which can be used to extract or
+            set node's value as well as get node's key), or
+            a :class:`pygtrie.Trie._NoneStep` object (which is falsy value
+            simulating a _Step with ``None`` key and value) if no prefix is
+            found.
+
+            The object can be treated as ``(key, value)`` pair denoting key with
+            associated value of the prefix.  This is deprecated, prefer using
+            ``key`` and ``value`` properties of the object.
         """
-        return next(self.prefixes(key), _NONE_PAIR)
+        return next(self.prefixes(key), self._NONE_STEP)
 
     def longest_prefix(self, key):
         """Finds the longest prefix of a key with a value.
 
-        This is equivalent to taking the last object yielded by
-        :func:`Trie.prefixes` with a default of `(None, None)` if said method
-        yields no items.  As an added bonus, the pair in that case will be
-        a falsy value (as opposed to regular two-element tuple of ``None``
-        values).
+        This is roughly equivalent to taking the last object yielded by
+        :func:`Trie.prefixes` with additional handling for situations when no
+        prefixes are found.
 
         Example:
 
@@ -961,9 +1089,13 @@ class Trie(_collections.MutableMapping):
             >>> t['foo'] = 'Foo'
             >>> t['foo/bar/baz'] = 'Baz'
             >>> t.longest_prefix('foo/bar/baz/qux')
-            ('foo/bar/baz', 'Baz')
+            ('foo/bar/baz': 'Baz')
+            >>> t.longest_prefix('foo/bar/baz/qux').key
+            'foo/bar/baz'
+            >>> t.longest_prefix('foo/bar/baz/qux').value
+            'Baz'
             >>> t.longest_prefix('does/not/exist')
-            (None, None)
+            (None Step)
             >>> bool(t.longest_prefix('does/not/exist'))
             False
 
@@ -971,11 +1103,17 @@ class Trie(_collections.MutableMapping):
             key: Key to look for.
 
         Returns:
-            ``(k, value)`` where ``k`` is the longest prefix of ``key`` (it may
-            equal ``key``) and ``value`` is a value associated with that key.
-            If no node is found, ``(None, None)`` is returned.
+            :class:`pygtrie.Trie._Step` object (which can be used to extract or
+            set node's value as well as get node's key), or
+            a :class:`pygtrie.Trie._NoneStep` object (which is falsy value
+            simulating a _Step with ``None`` key and value) if no prefix is
+            found.
+
+            The object can be treated as ``(key, value)`` pair denoting key with
+            associated value of the prefix.  This is deprecated, prefer using
+            ``key`` and ``value`` properties of the object.
         """
-        ret = _NONE_PAIR
+        ret = self._NONE_STEP
         for ret in self.prefixes(key):
             pass
         return ret
@@ -987,15 +1125,14 @@ class Trie(_collections.MutableMapping):
         return self._root != other._root  # pylint: disable=protected-access
 
     def __str__(self):
-        return 'Trie(%s)' % (
-                ', '.join('%s: %s' % item for item in self.iteritems()))
+        return 'Trie(%s)' % ', '.join(
+            '%s: %s' % item for item in self.iteritems())
 
     def __repr__(self):
         if self:
-            return  'Trie((%s,))' % (
-                    ', '.join('(%r, %r)' % item for item in self.iteritems()))
-        else:
-            return 'Trie()'
+            return  'Trie((%s,))' % ', '.join(
+                '(%r, %r)' % item for item in self.iteritems())
+        return 'Trie()'
 
     def __path_from_key(self, key):
         """Converts a user visible key object to internal path representation.
@@ -1043,20 +1180,20 @@ class Trie(_collections.MutableMapping):
     def traverse(self, node_factory, prefix=_SENTINEL):
         """Traverses the tree using node_factory object.
 
-        node_factory is a callable function which accepts (path_conv, path,
-        children, value=...) arguments, where path_conv is a lambda converting
-        path representation to key, path is the path to this node, children is
-        an iterable of children nodes constructed by node_factory, optional
-        value is the value associated with the path.
+        node_factory is a callable which accepts (path_conv, path, children,
+        value=...) arguments, where path_conv is a lambda converting path
+        representation to key, path is the path to this node, children is an
+        iterable of children nodes constructed by node_factory, optional value
+        is the value associated with the path.
 
         node_factory's children argument is a generator which has a few
         consequences:
 
         * To traverse into node's children, the generator must be iterated over.
-          This can by accomplished by a simple "children = list(children)"
+          This can by accomplished by a simple ``children = list(children)``
           statement.
         * Ignoring the argument allows node_factory to stop the traversal from
-          going into the children of the node.  In other words, whole subtrie
+          going into the children of the node.  In other words, whole subtries
           can be removed from traversal if node_factory chooses so.
         * If children is stored as is (i.e. as a generator) when it is iterated
           over later on it will see state of the trie as it is during the
@@ -1096,7 +1233,7 @@ class Trie(_collections.MutableMapping):
                     return int(path[-1].endswith('.html'))
                 else:
                     # Otherwise, it's a directory.  Traverse into children.
-                    return sum(int(is_html) for is_html in children)
+                    return sum(children)
 
             print t.traverse(traverse_callback)
 
@@ -1135,9 +1272,38 @@ class Trie(_collections.MutableMapping):
 
             root = t.traverse(traverse_callback)
 
-        Note: Unlike iterators, traverse method uses stack recursion which means
-        that using it on deep tries may lead to a RuntimeError exception thrown
-        once Python's maximum recursion depth is reached.
+        Note: Unlike iterators, when used on a deep trie, traverse method is
+        prone to rising a RuntimeError exception when Python's maximum recursion
+        depth is reached.  This can be addressed by not iterating over children
+        inside of the node_factory.  For example, the below code converts a trie
+        into an undirected graph using adjacency list representation::
+
+            def undirected_graph_from_trie(t):
+                '''Converts trie into a graph and returns its nodes.'''
+
+                Node = collections.namedtuple('Node', 'path neighbours')
+
+                class Builder(object):
+                    def __init__(self, path_conv, path, children, _=None):
+                        self.node = Node(path_conv(path), [])
+                        self.children = children
+                        self.parent = None
+
+                    def build(self, queue):
+                        for builder in self.children:
+                            builder.parent = self.node
+                            queue.append(builder)
+                        if self.parent:
+                            self.parent.neighbours.append(self.node)
+                            self.node.neighbours.append(self.parent)
+                        return self.node
+
+                nodes = [t.traverse(Builder)]
+                i = 0
+                while i < len(nodes):
+                    nodes[i] = nodes[i].build(nodes)
+                    i += 1
+                return nodes
 
         Args:
             node_factory: Makes opaque objects from the keys and values of the
@@ -1160,8 +1326,8 @@ class CharTrie(Trie):
 
     The only difference between :class:`pygtrie.CharTrie` and
     :class:`pygtrie.Trie` is that when :class:`pygtrie.CharTrie` returns keys
-    back to the client (for instance in keys() method is called), those keys are
-    returned as strings.
+    back to the client (for instance when :func:`Trie.keys` method is called),
+    those keys are returned as strings.
 
     Canonical example where this class can be used is a dictionary of words in
     a natural language.  For example::
@@ -1190,7 +1356,8 @@ class StringTrie(Trie):
     """:class:`pygtrie.Trie` variant accepting strings with a separator as keys.
 
     The trie accepts strings as keys which are split into components using
-    a separator specified during initialisation ("/" by default).
+    a separator specified during initialisation (forward slash,i.e. ``/``, by
+    default).
 
     Canonical example where this class can be used is when keys are paths.  For
     example, it could map from a path to a request handler::
@@ -1211,7 +1378,7 @@ class StringTrie(Trie):
         handler = handlers.longest_prefix(request_path)
     """
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # pylint: disable=differing-param-doc
         """Initialises the trie.
 
         Except for a ``separator`` named argument, all other arguments are
@@ -1224,6 +1391,10 @@ class StringTrie(Trie):
                 the trie.  "/" is used if this argument is not specified.  This
                 named argument is not specified on the function's prototype
                 because of Python's limitations.
+
+        Raises:
+            TypeError: If ``separator`` is not a string.
+            ValueError: If ``separator`` is empty.
         """
         separator = kwargs.pop('separator', '/')
         if not isinstance(separator, _basestring):
@@ -1247,7 +1418,7 @@ class StringTrie(Trie):
         return self._separator.join(path)
 
 
-class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-used
+class PrefixSet(_abc.MutableSet):
     """A set of prefixes.
 
     :class:`pygtrie.PrefixSet` works similar to a normal set except it is said
@@ -1269,7 +1440,6 @@ class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-
                     :class:`pygtrie.PrefixSet`.
             kwargs: Additional keyword arguments passed to the factory function.
         """
-        super(PrefixSet, self).__init__()
         trie = factory(**kwargs)
         if iterable:
             trie.update((key, True) for key in iterable)
@@ -1277,7 +1447,7 @@ class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-
 
     def copy(self):
         """Returns a copy of the prefix set."""
-        return self.__class__(self._trie)
+        return self.__class__(self._trie, factory=self._trie.__class__)
 
     def clear(self):
         """Removes all keys from the set."""
@@ -1340,37 +1510,40 @@ class PrefixSet(_collections.MutableSet):  # pylint: disable=abstract-class-not-
         """
         return len(self._trie)
 
-    def add(self, key):
-        """Adds given key to the set.
+    def add(self, value):
+        """Adds given value to the set.
 
-        If the set already contains prefix of the key being added, this
-        operation has no effect.  If the key being added is a prefix of some
-        existing keys in the set, those keys are deleted and replaced by
-        a single entry for the key being added.
+        If the set already contains prefix of the value being added, this
+        operation has no effect.  If the value being added is a prefix of some
+        existing values in the set, those values are deleted and replaced by
+        a single entry for the value being added.
 
-        For example, if the set contains key "foo" adding a key "foobar" does
-        not change anything.  On the other hand, if the set contains keys
-        "foobar" and "foobaz", adding a key "foo" will replace those two keys
-        with a single key "foo".
+        For example, if the set contains value "foo" adding a value "foobar"
+        does not change anything.  On the other hand, if the set contains values
+        "foobar" and "foobaz", adding a value "foo" will replace those two
+        values with a single value "foo".
 
-        This makes a difference when iterating over the keys or counting number
-        of keys.  Counter intuitively, adding of a key can *decrease* size of
-        the set.
+        This makes a difference when iterating over the values or counting
+        number of values.  Counter intuitively, adding of a value can *decrease*
+        size of the set.
 
         Args:
-            key: Key to add.
+            value: Value to add.
         """
-        if key not in self:
-            self._trie[key:] = True
+        if value not in self:
+            self._trie[value:] = True
 
-    def discard(self, key):
+    def discard(self, value):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')
 
-    def remove(self, key):
+    def remove(self, value):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')
 
     def pop(self):
+        """Raises NotImplementedError."""
         raise NotImplementedError(
-            'Removing keys from PrefixSet is not implemented.')
+            'Removing values from PrefixSet is not implemented.')
